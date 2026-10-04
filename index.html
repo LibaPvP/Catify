@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fff8fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#2b2033" media="(prefers-color-scheme: dark)">
+<title>Catify – add cat ears to any Minecraft skin</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="bar">
+  <h1 class="brand"><span class="brand-word">Catify</span></h1>
+  <p class="tagline">Turn any Minecraft skin into a catgirl, <em>nya~</em></p>
+  <span class="spacer"></span>
+  <button class="btn primary" id="downloadBtn">Download skin</button>
+</header>
+
+<main class="app">
+  <section class="stage" id="stage" aria-label="3D skin preview">
+    <canvas id="view"></canvas>
+
+    <div class="toolbar">
+      <div class="group" role="group" aria-label="Camera">
+        <button class="btn small" data-cam="front">Front</button>
+        <button class="btn small" data-cam="side">Side</button>
+        <button class="btn small" data-cam="back">Back</button>
+        <button class="btn small" data-cam="ears">Ears</button>
+      </div>
+      <div class="group" role="group" aria-label="Motion">
+        <button class="btn small" id="spinBtn" aria-pressed="false">Spin</button>
+        <button class="btn small" id="walkBtn" aria-pressed="false">Walk</button>
+      </div>
+      <div class="group">
+        <button class="btn small" id="compareBtn" aria-pressed="false" title="Hold to see the skin without ears">Hold for original</button>
+      </div>
+    </div>
+
+    <p class="hint" id="hint">Drag to turn, scroll to zoom, right-drag to pan, double-click to reset</p>
+    <div class="drop-cue">Drop your skin here, nya~</div>
+  </section>
+
+  <aside class="panel">
+    <!-- Skin -->
+    <details open>
+      <summary>Skin</summary>
+      <div class="sec">
+        <div class="row">
+          <input type="text" class="grow" id="username" placeholder="Minecraft username" autocomplete="off" spellcheck="false" aria-label="Minecraft username">
+          <button class="btn" id="loadUserBtn">Load</button>
+        </div>
+        <div class="row">
+          <button class="btn grow" id="uploadBtn">Upload skin PNG</button>
+          <input type="file" id="fileInput" accept="image/png" class="hidden">
+        </div>
+        <div>
+          <div class="field-label">Arm width</div>
+          <div class="seg" id="modelSeg">
+            <button data-model="classic" aria-pressed="true">Classic (4px)</button>
+            <button data-model="slim" aria-pressed="false">Slim (3px)</button>
+          </div>
+        </div>
+        <p class="status" id="skinStatus" role="status">Showing a sample skin. Load yours above or drop a PNG on the preview.</p>
+      </div>
+    </details>
+
+    <!-- Ears -->
+    <details open>
+      <summary>Ears</summary>
+      <div class="sec">
+        <label class="switch">Show cat ears <input type="checkbox" id="earsOn" checked></label>
+
+        <div>
+          <div class="field-label">Colour style</div>
+          <div class="seg" id="modeSeg">
+            <button data-mode="solid" aria-pressed="true">Solid</button>
+            <button data-mode="gradient2" aria-pressed="false">2-colour fade</button>
+            <button data-mode="gradient3" aria-pressed="false">3-colour fade</button>
+          </div>
+        </div>
+
+        <div class="gradient-bar hidden" id="gradBar" title="Top of ear to bottom"></div>
+        <div class="row hidden" id="gradTools">
+          <button class="btn small grow" id="flipBtn">Flip top and bottom</button>
+        </div>
+
+        <div id="stops"></div>
+
+        <div>
+          <div class="field-label">Quick colours</div>
+          <div class="presets" id="presets"></div>
+        </div>
+
+        <div class="row">
+          <button class="btn small grow" id="matchHairBtn">Match my hair colour</button>
+        </div>
+
+        <label class="switch">Soft shading on the sides <input type="checkbox" id="shadeOn" checked></label>
+
+        <div>
+          <div class="field-label">Skin's outer head layer (hats, hair tufts)</div>
+          <div class="seg" id="hatSeg">
+            <button data-hat="ears" aria-pressed="true">Clear where the ears are</button>
+            <button data-hat="keep" aria-pressed="false">Keep</button>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- Inner ear -->
+    <details open>
+      <summary>Inner ear</summary>
+      <div class="sec">
+        <label class="switch">Show inner ear <input type="checkbox" id="innerOn" checked></label>
+        <div id="innerStop"></div>
+        <button class="btn small" id="innerReset">Reset to original pink</button>
+      </div>
+    </details>
+
+    <!-- Layers -->
+    <details>
+      <summary>Layers</summary>
+      <div class="sec">
+        <label class="switch">Base layer <input type="checkbox" id="baseOn" checked></label>
+        <label class="switch">Outer layer (hat, jacket, ear tips) <input type="checkbox" id="overlayOn" checked></label>
+        <label class="switch">Floor grid <input type="checkbox" id="gridOn" checked></label>
+      </div>
+    </details>
+
+    <!-- Texture -->
+    <details open>
+      <summary>Texture</summary>
+      <div class="sec">
+        <div class="tex-wrap"><canvas id="texPreview" width="256" height="256" aria-label="Flat skin texture with ears"></canvas></div>
+        <button class="btn primary" id="downloadBtn2">Download skin</button>
+      </div>
+    </details>
+  </aside>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+"use strict";
+
+/* ------------------------------------------------------------------
+   Ear templates. The page first tries ears.png / pink_stuff.png next to
+   index.html (so you can redraw them), then falls back to these copies.
+------------------------------------------------------------------- */
+const EARS_FALLBACK = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAQMAAACQp+OdAAAAAXNSR0IB2cksfwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAZQTFRFAAAA/wAAG/+NIgAAAAJ0Uk5TAP9bkSK1AAAAL0lEQVR4nGNkgAJGMhmHbRkYnPYxMDIe2tsAYSy53cDY8L+BEUyAMKVWjDIGLwMATY4NQb8LUyIAAAAASUVORK5CYII=";
+const PINK_FALLBACK = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAQMAAACQp+OdAAAAAXNSR0IB2cksfwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAZQTFRFAAAA6ZWVjwdLdAAAAAJ0Uk5TAP9bkSK1AAAAG0lEQVR4nGNkgAJGqjGc9iExgJh6Jo8yBh0DAPpxA0F5wMJOAAAAAElFTkSuQmCC";
+
+/* ------------------------------ colour utils ------------------------------ */
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+}
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0; const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > .5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+const toHex = rgb => "#" + rgb.map(v => v.toString(16).padStart(2, "0")).join("");
+function fromHex(hex) {
+  const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(hex.trim());
+  if (!m) return null;
+  let s = m[1]; if (s.length === 3) s = s.split("").map(c => c + c).join("");
+  return [0, 2, 4].map(i => parseInt(s.slice(i, i + 2), 16));
+}
+const hslCss = c => `hsl(${c.h} ${c.s}% ${c.l}%)`;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* --------------------------------- state --------------------------------- */
+const state = {
+  earsOn: true,
+  mode: "solid",
+  stops: [ rgbToHsl(255, 158, 74), rgbToHsl(214, 110, 40), rgbToHsl(120, 60, 24) ],
+  shade: true,
+  hatMode: "ears", // skin's own outer head layer: "ears" clears only the ear pixels, "keep" leaves it
+  innerOn: true,
+  inner: rgbToHsl(233, 149, 149),
+  slim: false,
+  base: true, overlay: true, grid: true,
+  spin: false, walk: false,
+  comparing: false,
+  skinName: "sample",
+};
+const ORIGINAL_PINK = rgbToHsl(233, 149, 149);
+
+/* ------------------------------- canvases ------------------------------- */
+const skinCanvas = document.createElement("canvas"); skinCanvas.width = skinCanvas.height = 64;
+const skinCtx = skinCanvas.getContext("2d", { willReadFrequently: true });
+const outCanvas = document.createElement("canvas"); outCanvas.width = outCanvas.height = 64;
+const outCtx = outCanvas.getContext("2d", { willReadFrequently: true });
+
+/* ------------------------- sample skin (original) ------------------------- */
+function paintSampleSkin(ctx) {
+  ctx.clearRect(0, 0, 64, 64);
+  const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+  const skin = "#e0ac84", hair = "#5a3a26", hairDark = "#472d1d", shirt = "#6d8fd0", shirtDark = "#5877b5",
+        pants = "#3b3f5c", shoe = "#2b2b33";
+  // head
+  R(skin, 0, 0, 32, 16);
+  R(hair, 8, 0, 8, 8); R(hair, 24, 8, 8, 8);
+  R(hair, 8, 8, 8, 2); R(hairDark, 8, 10, 1, 1); R(hairDark, 15, 10, 1, 1);
+  R(hair, 0, 8, 8, 3); R(hair, 16, 8, 8, 3); R(hair, 0, 11, 3, 2); R(hair, 21, 11, 3, 2);
+  R("#ffffff", 9, 12, 1, 1); R("#3a2f6e", 10, 12, 1, 1); R("#3a2f6e", 13, 12, 1, 1); R("#ffffff", 14, 12, 1, 1);
+  R("#c98d6c", 11, 14, 2, 1);
+  R("#d79e78", 16, 0, 8, 8);
+  // body
+  R(shirt, 16, 16, 24, 16); R(shirtDark, 16, 30, 24, 2);
+  // right arm
+  R(shirt, 40, 16, 16, 16); R(skin, 40, 28, 16, 4); R(skin, 48, 16, 4, 4);
+  // left arm
+  R(shirt, 32, 48, 16, 16); R(skin, 32, 60, 16, 4); R(skin, 40, 48, 4, 4);
+  // legs
+  R(pants, 0, 16, 16, 16); R(shoe, 0, 30, 16, 2); R(shoe, 8, 16, 4, 4);
+  R(pants, 16, 48, 16, 16); R(shoe, 16, 62, 16, 2); R(shoe, 24, 48, 4, 4);
+}
+
+/* -------------------------- skin normalisation -------------------------- */
+function copyFlip(ctx, src, sx, sy, w, h, dx, dy) {
+  ctx.save(); ctx.translate(dx + w, dy); ctx.scale(-1, 1);
+  ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h); ctx.restore();
+}
+function mirrorLimb(ctx, src, u, v, u2, v2) {
+  copyFlip(ctx, src, u + 4, v, 4, 4, u2 + 4, v2);
+  copyFlip(ctx, src, u + 8, v, 4, 4, u2 + 8, v2);
+  copyFlip(ctx, src, u + 8, v + 4, 4, 12, u2, v2 + 4);
+  copyFlip(ctx, src, u + 4, v + 4, 4, 12, u2 + 4, v2 + 4);
+  copyFlip(ctx, src, u, v + 4, 4, 12, u2 + 8, v2 + 4);
+  copyFlip(ctx, src, u + 12, v + 4, 4, 12, u2 + 12, v2 + 4);
+}
+function detectSlim(ctx) {
+  const d = ctx.getImageData(54, 20, 2, 12).data;
+  for (let i = 3; i < d.length; i += 4) if (d[i] !== 0) return false;
+  return true;
+}
+// Returns true if the image was a usable skin.
+function setSkinFromImage(img) {
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  if (!(w === 64 && (h === 64 || h === 32)) && !(w === h * 2 || w === h)) return false;
+  skinCtx.clearRect(0, 0, 64, 64);
+  skinCtx.imageSmoothingEnabled = false;
+  if (h === w / 2) {
+    // legacy 64x32 skin: scale to 64 wide, then build the left limbs by mirroring
+    skinCtx.drawImage(img, 0, 0, 64, 32);
+    mirrorLimb(skinCtx, skinCanvas, 0, 16, 16, 48);
+    mirrorLimb(skinCtx, skinCanvas, 40, 16, 32, 48);
+    setModel(false);
+  } else {
+    skinCtx.drawImage(img, 0, 0, 64, 64); // HD skins get scaled down to 64x64
+    setModel(detectSlim(skinCtx));
+  }
+  return true;
+}
+
+/* ------------------------------ ear masks ------------------------------ */
+// mask entries: { x, y, f } where f = brightness of the template pixel (1 for pure colour)
+let earMask = [], innerMask = [], earYMin = 0, earYMax = 1, earClearRects = [];
+
+// Exact outer-head-layer pixels that sit on top of the ears (base-layer ear pixels mapped to x+32)
+function computeClearRects() {
+  const seen = new Set();
+  earClearRects = [];
+  earMask.concat(innerMask).forEach(p => {
+    if (p.y >= 16) return;
+    const x = p.x < 32 ? p.x + 32 : p.x, k = x + "," + p.y;
+    if (!seen.has(k)) { seen.add(k); earClearRects.push({ x, y: p.y }); }
+  });
+}
+
+function loadImage(src, cors) {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    if (cors) im.crossOrigin = "anonymous";
+    im.onload = () => res(im);
+    im.onerror = () => rej(new Error("load failed: " + src));
+    im.src = src;
+  });
+}
+function readMask(img) {
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const x = c.getContext("2d"); x.drawImage(img, 0, 0, 64, 64);
+  const d = x.getImageData(0, 0, 64, 64).data; // throws if tainted (file://)
+  const out = []; let peak = 1;
+  for (let i = 0; i < 64 * 64; i++) {
+    const a = d[i * 4 + 3]; if (a < 8) continue;
+    const b = Math.max(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]);
+    peak = Math.max(peak, b);
+    out.push({ x: i % 64, y: (i / 64) | 0, a, b });
+  }
+  out.forEach(p => { p.f = p.b / peak; });
+  return out;
+}
+async function loadMask(file, fallback) {
+  try { return readMask(await loadImage(file)); }
+  catch (e) { return readMask(await loadImage(fallback)); }
+}
+
+/* -------------------------- texture compositing -------------------------- */
+function stopRgb(i) { const c = state.stops[i]; return hslToRgb(c.h, c.s, c.l); }
+function earColourAt(t) {
+  if (state.mode === "solid") return stopRgb(0);
+  if (state.mode === "gradient2") {
+    const a = stopRgb(0), b = stopRgb(1);
+    return a.map((v, i) => lerp(v, b[i], t));
+  }
+  const a = stopRgb(0), b = stopRgb(1), c = stopRgb(2);
+  return t < .5 ? a.map((v, i) => lerp(v, b[i], t * 2)) : b.map((v, i) => lerp(v, c[i], (t - .5) * 2));
+}
+// Which face of the head a pixel sits on (base head at x 0-31, hat layer at 32-63)
+function headFace(x, y) {
+  if (y >= 16) return "other";
+  const lx = x % 32;
+  if (y < 8) return lx >= 8 && lx < 16 ? "top" : lx >= 16 && lx < 24 ? "bottom" : "none";
+  if (lx < 8 || (lx >= 16 && lx < 24)) return "side";
+  return lx < 16 ? "front" : "back";
+}
+
+function compose() {
+  outCtx.clearRect(0, 0, 64, 64);
+  outCtx.drawImage(skinCanvas, 0, 0);
+  if (state.earsOn && !state.comparing) {
+    if (state.hatMode === "ears") earClearRects.forEach(p => outCtx.clearRect(p.x, p.y, 1, 1));
+    const img = outCtx.getImageData(0, 0, 64, 64), d = img.data;
+    const span = Math.max(1, earYMax - earYMin);
+    for (const p of earMask) {
+      const t = (p.y - earYMin) / span;
+      let [r, g, b] = earColourAt(t);
+      let k = p.f;
+      if (state.shade) {
+        const face = headFace(p.x, p.y);
+        if (face === "side") k *= .84;
+        else if (face === "top") k *= 1.08;
+      }
+      const i = (p.y * 64 + p.x) * 4;
+      d[i] = clamp(Math.round(r * k), 0, 255);
+      d[i + 1] = clamp(Math.round(g * k), 0, 255);
+      d[i + 2] = clamp(Math.round(b * k), 0, 255);
+      d[i + 3] = 255;
+    }
+    if (state.innerOn) {
+      const [r, g, b] = hslToRgb(state.inner.h, state.inner.s, state.inner.l);
+      for (const p of innerMask) {
+        const i = (p.y * 64 + p.x) * 4;
+        d[i] = Math.round(r * p.f); d[i + 1] = Math.round(g * p.f); d[i + 2] = Math.round(b * p.f); d[i + 3] = 255;
+      }
+    }
+    outCtx.putImageData(img, 0, 0);
+  }
+  if (skinTexture) skinTexture.needsUpdate = true;
+  drawPreview();
+}
+
+/* ------------------------------ 2D preview ------------------------------ */
+const cssVar = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+const texPreview = document.getElementById("texPreview");
+const tpx = texPreview.getContext("2d");
+function drawPreview() {
+  tpx.imageSmoothingEnabled = false;
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+    tpx.fillStyle = (x + y) % 2 ? cssVar("--check-b", "#fbdde9") : cssVar("--check-a", "#ffeef5");
+    tpx.fillRect(x * 8, y * 8, 8, 8);
+  }
+  tpx.drawImage(outCanvas, 0, 0, 256, 256);
+}
+
+/* ------------------------------ 3D viewer ------------------------------ */
+const viewCanvas = document.getElementById("view");
+const stage = document.getElementById("stage");
+let renderer, scene, camera, skinTexture, model, grid, baseMat, overlayMat;
+const parts = {};
+
+function setBoxUVs(geo, u, v, w, h, d) {
+  const S = 64;
+  // BoxGeometry face order: +x (left side), -x (right side), +y top, -y bottom, +z front, -z back
+  const faces = [
+    [u + d + w, v + d, d, h, false],
+    [u, v + d, d, h, false],
+    [u + d, v, w, d, false],
+    [u + d + w, v, w, d, true],
+    [u + d, v + d, w, h, false],
+    [u + d + w + d, v + d, w, h, false],
+  ];
+  const uv = geo.attributes.uv;
+  faces.forEach(([x, y, fw, fh, flip], f) => {
+    const u0 = x / S, u1 = (x + fw) / S;
+    let vt = 1 - y / S, vb = 1 - (y + fh) / S;
+    if (flip) [vt, vb] = [vb, vt];
+    uv.setXY(f * 4 + 0, u0, vt);
+    uv.setXY(f * 4 + 1, u1, vt);
+    uv.setXY(f * 4 + 2, u0, vb);
+    uv.setXY(f * 4 + 3, u1, vb);
+  });
+  uv.needsUpdate = true;
+}
+function makeBox(w, h, d, u, v, inflate, mat) {
+  const g = new THREE.BoxGeometry(w + inflate * 2, h + inflate * 2, d + inflate * 2);
+  setBoxUVs(g, u, v, w, h, d);
+  return new THREE.Mesh(g, mat);
+}
+
+function buildModel() {
+  if (model) {
+    scene.remove(model);
+    model.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  }
+  model = new THREE.Group();
+  const aw = state.slim ? 3 : 4;
+  const layer = (group, w, h, d, uv, uv2, inflate, offset) => {
+    const base = makeBox(w, h, d, uv[0], uv[1], 0, baseMat);
+    const over = makeBox(w, h, d, uv2[0], uv2[1], inflate, overlayMat);
+    base.position.copy(offset); over.position.copy(offset);
+    base.userData.layer = "base"; over.userData.layer = "overlay";
+    over.renderOrder = 1;
+    group.add(base, over);
+  };
+  const pivot = (x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); model.add(g); return g; };
+
+  parts.head = pivot(0, 24, 0);
+  layer(parts.head, 8, 8, 8, [0, 0], [32, 0], .5, new THREE.Vector3(0, 4, 0));
+
+  parts.body = pivot(0, 18, 0);
+  layer(parts.body, 8, 12, 4, [16, 16], [16, 32], .25, new THREE.Vector3(0, 0, 0));
+
+  const ax = 4 + aw / 2;
+  parts.rArm = pivot(-ax, 22, 0);
+  layer(parts.rArm, aw, 12, 4, [40, 16], [40, 32], .25, new THREE.Vector3(0, -4, 0));
+  parts.lArm = pivot(ax, 22, 0);
+  layer(parts.lArm, aw, 12, 4, [32, 48], [48, 48], .25, new THREE.Vector3(0, -4, 0));
+
+  parts.rLeg = pivot(-2, 12, 0);
+  layer(parts.rLeg, 4, 12, 4, [0, 16], [0, 32], .25, new THREE.Vector3(0, -6, 0));
+  parts.lLeg = pivot(2, 12, 0);
+  layer(parts.lLeg, 4, 12, 4, [16, 48], [0, 48], .25, new THREE.Vector3(0, -6, 0));
+
+  scene.add(model);
+  applyLayerVisibility();
+}
+function applyLayerVisibility() {
+  if (!model) return;
+  model.traverse(o => {
+    if (o.userData.layer === "base") o.visible = state.base;
+    if (o.userData.layer === "overlay") o.visible = state.overlay;
+  });
+}
+
+/* camera orbit */
+let fitRadius = 64;
+const cam = { theta: .9, phi: 1.3, radius: 90, target: new THREE.Vector3(0, 16, 0) };
+const camGoal = { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.clone() };
+const CAM_PRESETS = {
+  front: { theta: 0, phi: 1.45, radius: "fit", target: [0, 16, 0] },
+  side: { theta: Math.PI / 2, phi: 1.45, radius: "fit", target: [0, 16, 0] },
+  back: { theta: Math.PI, phi: 1.45, radius: "fit", target: [0, 16, 0] },
+  ears: { theta: .45, phi: 1.15, radius: 30, target: [0, 28.5, 0] },
+};
+function goPreset(name) {
+  const p = CAM_PRESETS[name];
+  // pick the shortest way round
+  let t = p.theta; const cur = camGoal.theta;
+  while (t - cur > Math.PI) t -= Math.PI * 2;
+  while (t - cur < -Math.PI) t += Math.PI * 2;
+  camGoal.theta = t; camGoal.phi = p.phi; camGoal.radius = p.radius === "fit" ? fitRadius : p.radius;
+  camGoal.target.set(...p.target);
+  // on phones the toolbar sits along the bottom, so lift the full-body view above it
+  if (p.radius === "fit" && matchMedia("(max-width: 820px), (max-height: 520px) and (orientation: landscape)").matches) {
+    camGoal.target.y -= 3.5; camGoal.radius *= 1.08;
+  }
+}
+if (matchMedia("(pointer: coarse)").matches) {
+  document.getElementById("hint").textContent = "Drag to turn, pinch to zoom";
+  setTimeout(() => document.getElementById("hint").classList.add("gone"), 5000);
+  document.getElementById("skinStatus").textContent = "Showing a sample skin. Load yours with a username or upload the PNG.";
+}
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function initThree() {
+  if (!window.THREE) {
+    document.getElementById("skinStatus").textContent = "The 3D viewer couldn't load (no connection to cdnjs). The texture editor still works.";
+    document.getElementById("skinStatus").classList.add("error");
+    return false;
+  }
+  renderer = new THREE.WebGLRenderer({ canvas: viewCanvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(38, 1, .5, 500);
+
+  scene.add(new THREE.AmbientLight(0xffffff, .72));
+  const sun = new THREE.DirectionalLight(0xffffff, .42); sun.position.set(.4, 1, .8); scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffc6dc, .16); fill.position.set(-.6, .2, -1); scene.add(fill);
+
+  skinTexture = new THREE.CanvasTexture(outCanvas);
+  skinTexture.magFilter = THREE.NearestFilter;
+  skinTexture.minFilter = THREE.NearestFilter;
+  skinTexture.generateMipmaps = false;
+  skinTexture.encoding = THREE.sRGBEncoding;
+
+  baseMat = new THREE.MeshLambertMaterial({ map: skinTexture });
+  overlayMat = new THREE.MeshLambertMaterial({ map: skinTexture, transparent: true, alphaTest: .1, side: THREE.DoubleSide });
+
+  grid = new THREE.GridHelper(48, 48, new THREE.Color(cssVar("--grid-a", "#e889b0")).convertSRGBToLinear(), new THREE.Color(cssVar("--grid-b", "#f2c2d6")).convertSRGBToLinear());
+  grid.material.transparent = true; grid.material.opacity = .9;
+  scene.add(grid);
+
+  buildModel();
+  bindOrbit();
+  new ResizeObserver(resize).observe(stage);
+  resize();
+  requestAnimationFrame(tick);
+  return true;
+}
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  // distance at which the whole player (about 34 x 18 blocks of pixels) fits with some air
+  const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  fitRadius = Math.max(21 / tanHalf, 13 / (tanHalf * camera.aspect));
+}
+
+let last = performance.now(), walkTime = 0;
+function tick(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (state.spin && !dragging) camGoal.theta += dt * .6;
+  const ease = reduceMotion ? 1 : 1 - Math.pow(.0005, dt);
+  cam.theta += (camGoal.theta - cam.theta) * ease;
+  cam.phi += (camGoal.phi - cam.phi) * ease;
+  cam.radius += (camGoal.radius - cam.radius) * ease;
+  cam.target.lerp(camGoal.target, ease);
+  const sp = Math.sin(cam.phi);
+  camera.position.set(
+    cam.target.x + cam.radius * sp * Math.sin(cam.theta),
+    cam.target.y + cam.radius * Math.cos(cam.phi),
+    cam.target.z + cam.radius * sp * Math.cos(cam.theta));
+  camera.lookAt(cam.target);
+
+  if (state.walk) walkTime += dt * 6;
+  else walkTime += (Math.round(walkTime / Math.PI) * Math.PI - walkTime) * Math.min(1, dt * 8);
+  const s = Math.sin(walkTime) * .6;
+  if (parts.rArm) {
+    parts.rArm.rotation.x = s; parts.lArm.rotation.x = -s;
+    parts.rLeg.rotation.x = -s; parts.lLeg.rotation.x = s;
+    parts.head.rotation.y = state.walk ? Math.sin(walkTime * .5) * .12 : parts.head.rotation.y * .9;
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+let dragging = false;
+function bindOrbit() {
+  const pointers = new Map();
+  let mode = null, lastX = 0, lastY = 0, pinchDist = 0, pinchMid = { x: 0, y: 0 };
+  const panBy = (dx, dy) => {
+    const k = camGoal.radius * .0022;
+    const right = new THREE.Vector3(Math.cos(cam.theta), 0, -Math.sin(cam.theta));
+    camGoal.target.addScaledVector(right, -dx * k);
+    camGoal.target.y = clamp(camGoal.target.y + dy * k, 0, 40);
+  };
+  viewCanvas.addEventListener("contextmenu", e => e.preventDefault());
+  viewCanvas.addEventListener("pointerdown", e => {
+    viewCanvas.setPointerCapture(e.pointerId);
+    document.getElementById("hint").classList.add("gone");
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      pinchDist = Math.hypot(a.x - b.x, a.y - b.y); mode = "pinch";
+      pinchMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    } else {
+      mode = (e.button === 2 || e.button === 1 || e.shiftKey) ? "pan" : "rotate";
+    }
+    lastX = e.clientX; lastY = e.clientY; dragging = true;
+    viewCanvas.classList.add("dragging");
+  });
+  viewCanvas.addEventListener("pointermove", e => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (mode === "pinch" && pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      camGoal.radius = clamp(camGoal.radius * pinchDist / dist, 12, 160);
+      pinchDist = dist;
+      // moving both fingers together pans the camera
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      panBy(mid.x - pinchMid.x, mid.y - pinchMid.y);
+      pinchMid = mid;
+      return;
+    }
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    if (mode === "rotate") {
+      camGoal.theta -= dx * .008;
+      camGoal.phi = clamp(camGoal.phi - dy * .008, .15, Math.PI - .15);
+    } else if (mode === "pan") {
+      panBy(dx, dy);
+    }
+  });
+  const end = e => {
+    pointers.delete(e.pointerId);
+    if (pointers.size === 0) { dragging = false; mode = null; viewCanvas.classList.remove("dragging"); }
+    else if (pointers.size === 1) { mode = "rotate"; const p = [...pointers.values()][0]; lastX = p.x; lastY = p.y; }
+  };
+  viewCanvas.addEventListener("pointerup", end);
+  viewCanvas.addEventListener("pointercancel", end);
+  viewCanvas.addEventListener("dblclick", () => goPreset("front"));
+  viewCanvas.addEventListener("wheel", e => {
+    e.preventDefault();
+    camGoal.radius = clamp(camGoal.radius * Math.exp(e.deltaY * .0012), 12, 160);
+  }, { passive: false });
+}
+
+/* ------------------------------ UI: colours ------------------------------ */
+const STOP_NAMES = { solid: ["Ear colour"], gradient2: ["Top", "Bottom"], gradient3: ["Top", "Middle", "Bottom"] };
+
+function colourControl(container, getC, setC, name) {
+  const el = document.createElement("div");
+  el.className = "stop";
+  el.innerHTML = `
+    <div class="stop-head">
+      <span class="stop-name"></span>
+      <input type="text" class="hex" aria-label="Hex colour" maxlength="7" spellcheck="false">
+      <input type="color" class="swatch" aria-label="Pick colour">
+    </div>
+    <label class="slider">Hue <input type="range" min="0" max="360" data-k="h"><output></output></label>
+    <label class="slider">Saturation <input type="range" min="0" max="100" data-k="s"><output></output></label>
+    <label class="slider">Brightness <input type="range" min="0" max="100" data-k="l"><output></output></label>`;
+  el.querySelector(".stop-name").textContent = name;
+  const hex = el.querySelector(".hex"), sw = el.querySelector(".swatch");
+  const ranges = [...el.querySelectorAll("input[type=range]")];
+
+  function refresh(skipHex) {
+    const c = getC();
+    ranges.forEach(r => { r.value = c[r.dataset.k]; r.nextElementSibling.textContent = c[r.dataset.k]; });
+    const hx = toHex(hslToRgb(c.h, c.s, c.l));
+    if (!skipHex) hex.value = hx;
+    sw.value = hx;
+    ranges[0].style.setProperty("--track",
+      `linear-gradient(90deg, ${[0, 60, 120, 180, 240, 300, 360].map(h => `hsl(${h} ${c.s}% ${c.l}%)`).join(",")})`);
+    ranges[1].style.setProperty("--track", `linear-gradient(90deg, hsl(${c.h} 0% ${c.l}%), hsl(${c.h} 100% ${c.l}%))`);
+    ranges[2].style.setProperty("--track", `linear-gradient(90deg, #000, hsl(${c.h} ${c.s}% 50%), #fff)`);
+  }
+  ranges.forEach(r => r.addEventListener("input", () => {
+    const c = { ...getC(), [r.dataset.k]: +r.value };
+    setC(c); refresh(); changed();
+  }));
+  sw.addEventListener("input", () => {
+    const rgb = fromHex(sw.value); if (!rgb) return;
+    setC(rgbToHsl(...rgb)); refresh(); changed();
+  });
+  hex.addEventListener("input", () => {
+    const rgb = fromHex(hex.value); if (!rgb) return;
+    setC(rgbToHsl(...rgb)); refresh(true); changed();
+  });
+  hex.addEventListener("blur", () => refresh());
+  el.refresh = refresh;
+  refresh();
+  container.appendChild(el);
+  return el;
+}
+
+const stopsEl = document.getElementById("stops");
+let stopControls = [];
+function renderStops() {
+  stopsEl.innerHTML = "";
+  stopsEl.style.display = "grid"; stopsEl.style.gap = "10px";
+  stopControls = STOP_NAMES[state.mode].map((n, i) =>
+    colourControl(stopsEl, () => state.stops[i], c => { state.stops[i] = c; }, n));
+  const grad = state.mode !== "solid";
+  document.getElementById("gradBar").classList.toggle("hidden", !grad);
+  document.getElementById("gradTools").classList.toggle("hidden", !grad);
+  updateGradBar();
+}
+function updateGradBar() {
+  const n = STOP_NAMES[state.mode].length;
+  document.getElementById("gradBar").style.background =
+    `linear-gradient(90deg, ${state.stops.slice(0, n).map(hslCss).join(",")})`;
+}
+let innerControl;
+function changed() { updateGradBar(); compose(); }
+
+/* presets: [top, middle, bottom, mode] */
+const PRESETS = [
+  { name: "Ginger", mode: "solid", c: ["#ff9e4a"] },
+  { name: "Black cat", mode: "solid", c: ["#26232b"] },
+  { name: "Snow", mode: "solid", c: ["#f3f0f2"] },
+  { name: "Grey tabby", mode: "gradient2", c: ["#8d8e99", "#55566a"] },
+  { name: "Siamese", mode: "gradient2", c: ["#4a2f24", "#efe0c8"] },
+  { name: "Calico", mode: "gradient3", c: ["#2b2420", "#e98a3a", "#f6efe6"] },
+  { name: "Cream", mode: "solid", c: ["#f1d3a1"] },
+  { name: "Sunset", mode: "gradient3", c: ["#ffd36e", "#ff7aa8", "#7a5cff"] },
+  { name: "Galaxy", mode: "gradient2", c: ["#3b2a8c", "#3fd0e0"] },
+];
+const presetsEl = document.getElementById("presets");
+PRESETS.forEach(p => {
+  const b = document.createElement("button");
+  b.className = "preset"; b.title = p.name; b.setAttribute("aria-label", p.name + " ears");
+  b.style.background = p.c.length > 1 ? `linear-gradient(180deg, ${p.c.join(",")})` : p.c[0];
+  b.addEventListener("click", () => {
+    p.c.forEach((hx, i) => { state.stops[i] = rgbToHsl(...fromHex(hx)); });
+    setMode(p.mode);
+  });
+  presetsEl.appendChild(b);
+});
+
+function setMode(mode) {
+  state.mode = mode;
+  document.querySelectorAll("#modeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+  renderStops(); compose();
+}
+document.querySelectorAll("#modeSeg button").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+document.querySelectorAll("#hatSeg button").forEach(b => b.addEventListener("click", () => {
+  state.hatMode = b.dataset.hat;
+  document.querySelectorAll("#hatSeg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  compose();
+}));
+
+document.getElementById("flipBtn").addEventListener("click", () => {
+  const n = STOP_NAMES[state.mode].length;
+  const flipped = state.stops.slice(0, n).reverse();
+  flipped.forEach((c, i) => { state.stops[i] = c; });
+  stopControls.forEach(c => c.refresh());
+  changed();
+});
+
+document.getElementById("matchHairBtn").addEventListener("click", () => {
+  // average the top of the head, preferring the hat layer where it's painted
+  const base = skinCtx.getImageData(8, 0, 8, 8).data, hat = skinCtx.getImageData(40, 0, 8, 8).data;
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < base.length; i += 4) {
+    const src = hat[i + 3] > 128 ? hat : base;
+    if (src[i + 3] < 128) continue;
+    r += src[i]; g += src[i + 1]; b += src[i + 2]; n++;
+  }
+  if (!n) return;
+  const avg = rgbToHsl(r / n, g / n, b / n);
+  if (state.mode === "solid") state.stops[0] = avg;
+  else {
+    state.stops[0] = { ...avg, l: clamp(avg.l + 8, 0, 100) };
+    state.stops[1] = { ...avg, l: clamp(avg.l - 8, 0, 100) };
+    state.stops[2] = { ...avg, l: clamp(avg.l - 16, 0, 100) };
+  }
+  stopControls.forEach(c => c.refresh());
+  changed();
+});
+
+/* ------------------------------ UI: toggles ------------------------------ */
+const bindSwitch = (id, key, after) => {
+  const el = document.getElementById(id);
+  el.checked = state[key];
+  el.addEventListener("change", () => { state[key] = el.checked; after ? after() : compose(); });
+};
+bindSwitch("earsOn", "earsOn");
+bindSwitch("shadeOn", "shade");
+bindSwitch("innerOn", "innerOn");
+bindSwitch("baseOn", "base", applyLayerVisibility);
+bindSwitch("overlayOn", "overlay", applyLayerVisibility);
+bindSwitch("gridOn", "grid", () => { if (grid) grid.visible = state.grid; });
+
+document.getElementById("innerReset").addEventListener("click", () => {
+  state.inner = { ...ORIGINAL_PINK }; innerControl.refresh(); compose();
+});
+
+function setModel(slim) {
+  state.slim = slim;
+  document.querySelectorAll("#modelSeg button").forEach(b => b.setAttribute("aria-pressed", (b.dataset.model === "slim") === slim));
+  if (scene) buildModel();
+}
+document.querySelectorAll("#modelSeg button").forEach(b =>
+  b.addEventListener("click", () => setModel(b.dataset.model === "slim")));
+
+document.querySelectorAll("[data-cam]").forEach(b => b.addEventListener("click", () => goPreset(b.dataset.cam)));
+const toggleBtn = (id, key) => {
+  const b = document.getElementById(id);
+  b.addEventListener("click", () => { state[key] = !state[key]; b.setAttribute("aria-pressed", state[key]); });
+};
+toggleBtn("spinBtn", "spin");
+toggleBtn("walkBtn", "walk");
+
+const compareBtn = document.getElementById("compareBtn");
+const startCompare = e => { e.preventDefault(); state.comparing = true; compareBtn.setAttribute("aria-pressed", "true"); compose(); };
+const stopCompare = () => { if (!state.comparing) return; state.comparing = false; compareBtn.setAttribute("aria-pressed", "false"); compose(); };
+compareBtn.addEventListener("pointerdown", startCompare);
+compareBtn.addEventListener("contextmenu", e => e.preventDefault());
+compareBtn.addEventListener("pointercancel", stopCompare);
+compareBtn.addEventListener("pointerup", stopCompare);
+compareBtn.addEventListener("pointerleave", stopCompare);
+compareBtn.addEventListener("keydown", e => { if (e.key === " " || e.key === "Enter") startCompare(e); });
+compareBtn.addEventListener("keyup", stopCompare);
+
+/* ------------------------------ UI: loading ------------------------------ */
+const statusEl = document.getElementById("skinStatus");
+function status(msg, err) { statusEl.textContent = msg; statusEl.classList.toggle("error", !!err); }
+
+async function loadFile(file) {
+  if (!file) return;
+  if (!/image\/png/.test(file.type) && !/\.png$/i.test(file.name)) {
+    status("That file isn't a PNG. Minecraft skins are 64×64 PNG images.", true); return;
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(url);
+    if (!setSkinFromImage(img)) { status(`That image is ${img.width}×${img.height}. Skins need to be 64×64 or 64×32.`, true); return; }
+    state.skinName = file.name.replace(/\.png$/i, "");
+    status(`Loaded ${file.name} (${state.slim ? "slim" : "classic"} arms detected).`);
+    compose();
+  } catch (e) {
+    status("That PNG couldn't be read. Try exporting it again.", true);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/* Username lookup. Mojang's own API blocks requests from web pages, so this tries
+   several community services in turn and uses the first one that answers. */
+// Timeout without AbortSignal: some sandboxed previews wrap fetch() and can't pass signals through
+function fetchT(url, ms = 7000) {
+  return Promise.race([
+    fetch(url, { cache: "no-store" }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error(`${url} -> timed out`)), ms)),
+  ]);
+}
+async function fetchJson(url) {
+  const r = await fetchT(url);
+  if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
+  return r.json();
+}
+// Downloads an image as a blob so the canvas never gets "tainted"
+async function fetchImage(url) {
+  const r = await fetchT(url);
+  if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
+  const blob = await r.blob();
+  if (!blob.type.startsWith("image/")) throw new Error(`${url} -> not an image`);
+  const obj = URL.createObjectURL(blob);
+  try { return await loadImage(obj); } finally { URL.revokeObjectURL(obj); }
+}
+const enc = encodeURIComponent;
+const SKIN_LOOKUPS = [
+  // 1. PlayerDB for the UUID (never changes), then skin servers that refresh quickly
+  async name => {
+    const j = await fetchJson(`https://playerdb.co/api/player/minecraft/${enc(name)}`);
+    const p = j?.data?.player;
+    if (!j.success || !p) throw new Error("playerdb: player not found");
+    const uuid = p.raw_id || p.id.replace(/-/g, "");
+    const urls = [`https://crafatar.com/skins/${uuid}`, `https://mc-heads.net/skin/${uuid}`, p.skin_texture]
+      .filter((u, i, a) => u && a.indexOf(u) === i);
+    for (const u of urls) {
+      try { return { img: await fetchImage(u), name: p.username }; } catch (e) { console.warn(e.message); }
+    }
+    throw new Error("playerdb: no skin server answered");
+  },
+  // 2. Image services that accept usernames directly
+  async name => ({ img: await fetchImage(`https://mc-heads.net/skin/${enc(name)}`) }),
+  async name => ({ img: await fetchImage(`https://minotar.net/skin/${enc(name)}`) }),
+  // 3. Ashcon: reliable, but can keep an old skin cached for a long time, so it goes last
+  async name => {
+    const j = await fetchJson(`https://api.ashcon.app/mojang/v2/user/${enc(name)}`);
+    const data = j?.textures?.skin?.data;
+    if (!data) throw new Error("ashcon: no skin data");
+    return { img: await loadImage("data:image/png;base64," + data), slim: !!j.textures.slim, name: j.username };
+  },
+];
+
+let lookupBusy = false;
+async function loadUsername() {
+  const name = document.getElementById("username").value.trim();
+  if (!/^[A-Za-z0-9_]{1,16}$/.test(name)) {
+    status("Usernames are up to 16 letters, numbers or underscores.", true); return;
+  }
+  if (lookupBusy) return;
+  lookupBusy = true;
+  const btn = document.getElementById("loadUserBtn");
+  btn.disabled = true;
+  status(`Looking up ${name}…`);
+  try {
+    for (const lookup of SKIN_LOOKUPS) {
+      try {
+        const res = await lookup(name);
+        if (!setSkinFromImage(res.img)) throw new Error("image is not a skin");
+        skinCtx.getImageData(0, 0, 1, 1); // throws if the canvas is tainted
+        if (typeof res.slim === "boolean") setModel(res.slim);
+        state.skinName = res.name || name;
+        status(`Loaded ${state.skinName}'s skin (${state.slim ? "slim" : "classic"} arms).`);
+        compose();
+        return;
+      } catch (e) { console.warn("Skin lookup failed:", e.message || e); }
+    }
+    status(`Couldn't get a skin for "${name}". Check the spelling, or save the skin from namemc.com and upload the PNG.`, true);
+  } finally {
+    lookupBusy = false; btn.disabled = false;
+  }
+}
+
+document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("fileInput").click());
+document.getElementById("fileInput").addEventListener("change", e => { loadFile(e.target.files[0]); e.target.value = ""; });
+document.getElementById("loadUserBtn").addEventListener("click", loadUsername);
+document.getElementById("username").addEventListener("keydown", e => { if (e.key === "Enter") loadUsername(); });
+
+["dragenter", "dragover"].forEach(t => stage.addEventListener(t, e => { e.preventDefault(); stage.classList.add("drag-over"); }));
+["dragleave", "drop"].forEach(t => stage.addEventListener(t, e => { e.preventDefault(); stage.classList.remove("drag-over"); }));
+stage.addEventListener("drop", e => loadFile(e.dataTransfer.files[0]));
+document.addEventListener("paste", e => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type === "image/png");
+  if (item) loadFile(item.getAsFile());
+});
+
+/* ------------------------------ download ------------------------------ */
+function download() {
+  const wasComparing = state.comparing; state.comparing = false; compose();
+  outCanvas.toBlob(blob => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${state.skinName || "skin"}_cat.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }, "image/png");
+  state.comparing = wasComparing;
+}
+document.getElementById("downloadBtn").addEventListener("click", download);
+document.getElementById("downloadBtn2").addEventListener("click", download);
+
+/* --------------------------------- boot --------------------------------- */
+(async function boot() {
+  paintSampleSkin(skinCtx);
+  [earMask, innerMask] = await Promise.all([
+    loadMask("ears.png", EARS_FALLBACK),
+    loadMask("pink_stuff.png", PINK_FALLBACK),
+  ]);
+  const ys = earMask.concat(innerMask).map(p => p.y);
+  earYMin = Math.min(...ys); earYMax = Math.max(...ys);
+  computeClearRects();
+  renderStops();
+  innerControl = colourControl(document.getElementById("innerStop"), () => state.inner, c => { state.inner = c; }, "Inner colour");
+  initThree();
+  compose();
+  if (window.THREE) goPreset("front");
+})();
+})();
+</script>
+</body>
+</html>
