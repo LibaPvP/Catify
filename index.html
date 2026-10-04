@@ -5,8 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#fff8fb" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#2b2033" media="(prefers-color-scheme: dark)">
-<title>Catify – add cat ears to any Minecraft skin</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
+<title>Catify – Add Cat Ears to Your Minecraft Skin (Free 3D Editor)</title>
+<meta name="description" content="Add cat ears to any Minecraft skin in seconds. Load your skin by username or PNG, pick ear colours and gradients, preview it in 3D and download it. Free, no sign-up.">
+<meta name="keywords" content="minecraft cat ears, catgirl minecraft skin, minecraft skin editor, cat ear skin, neko minecraft skin, minecraft skin ears">
+<meta name="author" content="Liba">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://libapvp.github.io/Catify/">
+
+<!-- Link previews (Discord, Twitter/X, WhatsApp…) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Catify">
+<meta property="og:title" content="Catify – Add Cat Ears to Your Minecraft Skin">
+<meta property="og:description" content="Turn any Minecraft skin into a catgirl. Pick ear colours and gradients, preview in 3D, download. Free.">
+<meta property="og:url" content="https://libapvp.github.io/Catify/">
+<meta property="og:image" content="https://libapvp.github.io/Catify/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A Minecraft skin wearing pink cat ears in the Catify editor">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Catify – Add Cat Ears to Your Minecraft Skin">
+<meta name="twitter:description" content="Turn any Minecraft skin into a catgirl. Pick ear colours, preview in 3D, download. Free.">
+<meta name="twitter:image" content="https://libapvp.github.io/Catify/og-image.png">
+
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Catify",
+  "url": "https://libapvp.github.io/Catify/",
+  "description": "Free online tool that adds cat ears to any Minecraft skin, with a 3D preview, colour sliders and gradients.",
+  "applicationCategory": "DesignApplication",
+  "operatingSystem": "Any (runs in the browser)",
+  "browserRequirements": "Requires JavaScript and WebGL",
+  "image": "https://libapvp.github.io/Catify/og-image.png",
+  "inLanguage": "en",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Liba" }
+}
+</script><text y='.9em' font-size='90'>🐾</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -15,7 +56,7 @@
 <body>
 
 <header class="bar">
-  <h1 class="brand"><span class="brand-word">Catify</span></h1>
+  <h1 class="brand"><span class="brand-word">Catify</span><span class="sr-only"> – add cat ears to your Minecraft skin</span></h1>
   <p class="tagline">Turn any Minecraft skin into a catgirl, <em>nya~</em></p>
   <span class="spacer"></span>
   <button class="btn primary" id="downloadBtn">Download skin</button>
@@ -140,9 +181,38 @@
         <button class="btn primary" id="downloadBtn2">Download skin</button>
       </div>
     </details>
+
+    <!-- About & FAQ: readable text for people and search engines -->
+    <details id="about">
+      <summary>About Catify</summary>
+      <div class="sec about">
+        <p>Catify is a free online tool that adds cat ears to any Minecraft skin. Load your skin with your Minecraft username or upload the PNG, choose an ear colour or a gradient, check the result in the 3D preview, and download the new skin. Everything happens in your browser, nothing is uploaded and you don't need an account.</p>
+
+        <h2>How to add cat ears to your Minecraft skin</h2>
+        <ol>
+          <li>Type your Minecraft username and press Load, or upload your skin PNG.</li>
+          <li>Pick a solid ear colour or a 2- or 3-colour fade, or press "Match my hair colour".</li>
+          <li>Choose a colour for the inner ear.</li>
+          <li>Press "Download skin" and upload the file on minecraft.net or in the Minecraft Launcher under Skins.</li>
+        </ol>
+
+        <h2>Questions</h2>
+        <h3>Does it work with slim (Alex) skins?</h3>
+        <p>Yes. Catify detects slim and classic arms automatically, and you can switch between them under Arm width.</p>
+        <h3>Will the ears show up in game?</h3>
+        <p>Yes. The ears are painted into the skin itself, partly on the outer head layer, so they appear in vanilla Minecraft without mods. Make sure the hat layer is turned on in Skin Customization.</p>
+        <h3>My hat layer covers the ears. What do I do?</h3>
+        <p>Keep "Clear where the ears are" selected under the ear settings. It removes only the outer-layer pixels that sit on top of the ears and keeps the rest of your hat or hair.</p>
+        <h3>Why is my old skin showing after a username lookup?</h3>
+        <p>Skin services can take up to an hour to notice a skin change. Upload the PNG instead to use your newest skin right away.</p>
+        <h3>Does it work on phones?</h3>
+        <p>Yes. Catify works on phones, tablets and computers. Drag to turn the model and pinch to zoom.</p>
+      </div>
+    </details>
   </aside>
 </main>
 
+<noscript><p style="padding:16px">Catify needs JavaScript to add cat ears to your Minecraft skin. Please turn JavaScript on.</p></noscript>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
