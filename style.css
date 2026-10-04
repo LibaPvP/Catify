@@ -282,6 +282,10 @@ input[type="text"]:focus { border-color: var(--pink); outline: none; }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-pressed="true"] { background: var(--pink); color: var(--on-pink); box-shadow: 0 2px 0 rgba(229,99,143,.3); }
 
+/* left / right ear picker */
+.ear-pick button[aria-pressed="true"] { background: var(--lav); color: #2d1f55; box-shadow: 0 2px 0 rgba(140,110,230,.3); }
+.ear-note { margin: 6px 2px 0; font-size: 12px; }
+
 /* toggles */
 .switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
 .switch input {
@@ -368,6 +372,20 @@ input[type="range"]::-moz-range-thumb {
 #texPreview { width: 100%; max-width: 256px; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 8px; }
 
 .hidden { display: none !important; }
+
+/* text that's read out by screen readers (and search engines) but not shown */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* About & FAQ */
+.about { gap: 8px; color: var(--ink); font-weight: 600; }
+.about p, .about ol { margin: 0; line-height: 1.6; }
+.about ol { padding-left: 20px; display: grid; gap: 4px; }
+.about h2 { font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 16px; color: var(--pink-deep); margin: 10px 0 2px; }
+.about h3 { font-size: 14px; font-weight: 800; margin: 8px 0 0; }
+.about h3 + p { color: var(--muted); }
 
 /* ------------------------------ touch devices ------------------------------ */
 html { -webkit-text-size-adjust: 100%; }
