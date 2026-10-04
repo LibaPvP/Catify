@@ -115,6 +115,16 @@
       <summary>Ears</summary>
       <div class="sec">
         <label class="switch">Show cat ears <input type="checkbox" id="earsOn" checked></label>
+        <label class="switch">Different colour for each ear <input type="checkbox" id="splitOn"></label>
+
+        <div class="hidden" id="earPickWrap">
+          <div class="field-label">Editing</div>
+          <div class="seg ear-pick" id="earPick">
+            <button data-ear="0" aria-pressed="true">Left ear</button>
+            <button data-ear="1" aria-pressed="false">Right ear</button>
+          </div>
+          <p class="field-label ear-note">Left and right as you look at the front of the skin.</p>
+        </div>
 
         <div>
           <div class="field-label">Colour style</div>
@@ -261,8 +271,13 @@ const lerp = (a, b, t) => a + (b - a) * t;
 /* --------------------------------- state --------------------------------- */
 const state = {
   earsOn: true,
-  mode: "solid",
-  stops: [ rgbToHsl(255, 158, 74), rgbToHsl(214, 110, 40), rgbToHsl(120, 60, 24) ],
+  // one colour setup per ear: [0] = left ear, [1] = right ear (as seen from the front)
+  ears: [
+    { mode: "solid", stops: [ rgbToHsl(255, 158, 74), rgbToHsl(214, 110, 40), rgbToHsl(120, 60, 24) ] },
+    { mode: "solid", stops: [ rgbToHsl(255, 158, 74), rgbToHsl(214, 110, 40), rgbToHsl(120, 60, 24) ] },
+  ],
+  split: false,   // different colour for each ear
+  editing: 0,     // which ear the controls are editing when split is on
   shade: true,
   hatMode: "ears", // skin's own outer head layer: "ears" clears only the ear pixels, "keep" leaves it
   innerOn: true,
@@ -274,6 +289,10 @@ const state = {
   skinName: "sample",
 };
 const ORIGINAL_PINK = rgbToHsl(233, 149, 149);
+// state.mode / state.stops always point at the ear currently being edited
+const activeEar = () => state.ears[state.split ? state.editing : 0];
+Object.defineProperty(state, "mode", { get: () => activeEar().mode, set: v => { activeEar().mode = v; } });
+Object.defineProperty(state, "stops", { get: () => activeEar().stops });
 
 /* ------------------------------- canvases ------------------------------- */
 const skinCanvas = document.createElement("canvas"); skinCanvas.width = skinCanvas.height = 64;
@@ -387,10 +406,10 @@ async function loadMask(file, fallback) {
 }
 
 /* -------------------------- texture compositing -------------------------- */
-function stopRgb(i) { const c = state.stops[i]; return hslToRgb(c.h, c.s, c.l); }
-function earColourAt(t) {
-  if (state.mode === "solid") return stopRgb(0);
-  if (state.mode === "gradient2") {
+function earColourAt(t, ear) {
+  const stopRgb = i => { const c = ear.stops[i]; return hslToRgb(c.h, c.s, c.l); };
+  if (ear.mode === "solid") return stopRgb(0);
+  if (ear.mode === "gradient2") {
     const a = stopRgb(0), b = stopRgb(1);
     return a.map((v, i) => lerp(v, b[i], t));
   }
@@ -415,7 +434,8 @@ function compose() {
     const span = Math.max(1, earYMax - earYMin);
     for (const p of earMask) {
       const t = (p.y - earYMin) / span;
-      let [r, g, b] = earColourAt(t);
+      const ear = state.ears[state.split ? p.side : 0];
+      let [r, g, b] = earColourAt(t, ear);
       let k = p.f;
       if (state.shade) {
         const face = headFace(p.x, p.y);
@@ -793,11 +813,27 @@ PRESETS.forEach(p => {
   presetsEl.appendChild(b);
 });
 
+function syncEarUI() {
+  document.querySelectorAll("#modeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === state.mode));
+  document.querySelectorAll("#earPick button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.ear === state.editing));
+  document.getElementById("earPickWrap").classList.toggle("hidden", !state.split);
+  renderStops();
+}
 function setMode(mode) {
   state.mode = mode;
-  document.querySelectorAll("#modeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));
-  renderStops(); compose();
+  syncEarUI(); compose();
 }
+const cloneEar = e => ({ mode: e.mode, stops: e.stops.map(c => ({ ...c })) });
+document.getElementById("splitOn").addEventListener("change", e => {
+  state.split = e.target.checked;
+  if (state.split) state.ears[1] = cloneEar(state.ears[0]); // start the right ear as a copy of the left
+  state.editing = 0;
+  syncEarUI(); compose();
+});
+document.querySelectorAll("#earPick button").forEach(b => b.addEventListener("click", () => {
+  state.editing = +b.dataset.ear;
+  syncEarUI();
+}));
 document.querySelectorAll("#modeSeg button").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
 document.querySelectorAll("#hatSeg button").forEach(b => b.addEventListener("click", () => {
   state.hatMode = b.dataset.hat;
@@ -1017,6 +1053,7 @@ document.getElementById("downloadBtn2").addEventListener("click", download);
   const ys = earMask.concat(innerMask).map(p => p.y);
   earYMin = Math.min(...ys); earYMax = Math.max(...ys);
   computeClearRects();
+  earMask.forEach(p => { p.side = (p.x % 32) < 12 ? 0 : 1; });
   renderStops();
   innerControl = colourControl(document.getElementById("innerStop"), () => state.inner, c => { state.inner = c; }, "Inner colour");
   initThree();
