@@ -60,7 +60,7 @@
   <p class="tagline">Turn any Minecraft skin into a <span class="cat-word">catgirl</span>, <em>nya~</em></p>
   <span class="spacer"></span>
   <button class="btn" id="galleryBtn">Gallery</button>
-  <button class="btn primary" id="downloadBtn">Download skin</button>
+  <button class="btn primary" id="downloadBtn" title="Downloads your skin and adds it to the community gallery">Download skin</button>
 </header>
 
 <main class="app">
@@ -190,15 +190,16 @@
       <div class="sec">
         <div class="tex-wrap"><canvas id="texPreview" width="256" height="256" aria-label="Flat skin texture with ears"></canvas></div>
         <button class="btn primary" id="downloadBtn2">Download skin</button>
+        <p class="field-label save-tip">Downloaded skins are also added to the public community gallery.</p>
         <p class="field-label save-tip hidden" id="saveTip">On a phone, choose <strong>Save to Files</strong>. Saving to Photos can add a white background, which breaks the see-through parts of the skin.</p>
 
         <div class="share" id="shareBox">
-          <div class="field-label">Share to the community gallery</div>
+          <div class="field-label">Name shown in the gallery, or share without downloading</div>
           <div class="row">
             <input type="text" class="grow" id="shareName" placeholder="Your name (optional)" maxlength="20" autocomplete="nickname" spellcheck="false" aria-label="Your name for the gallery">
             <button class="btn" id="shareBtn">Share</button>
           </div>
-          <p class="status" id="shareStatus" role="status">Everyone visiting Catify can see and download shared skins.</p>
+          <p class="status" id="shareStatus" role="status">Everyone visiting Catify can see and download skins in the gallery.</p>
         </div>
       </div>
     </details>
@@ -207,7 +208,7 @@
     <details id="about">
       <summary>About Catify</summary>
       <div class="sec about">
-        <p>Catify is a free online tool that adds cat ears to any Minecraft skin and turns it into a <span class="cat-word">catgirl</span>. Load your skin with your Minecraft username or upload the PNG, choose an ear colour or a gradient, check the result in the 3D preview, and download the new skin. Everything happens in your browser and you don't need an account. Your skin is only uploaded if you choose to share it to the community gallery.</p>
+        <p>Catify is a free online tool that adds cat ears to any Minecraft skin and turns it into a <span class="cat-word">catgirl</span>. Load your skin with your Minecraft username or upload the PNG, choose an ear colour or a gradient, check the result in the 3D preview, and download the new skin. Everything happens in your browser and you don't need an account. Skins you download are also added to the public community gallery.</p>
 
         <h2>How to add cat ears to your Minecraft skin</h2>
         <ol>
@@ -227,7 +228,7 @@
         <h3>Why is my old skin showing after a username lookup?</h3>
         <p>Skin services can take up to an hour to notice a skin change. Upload the PNG instead to use your newest skin right away.</p>
         <h3>What is the community gallery?</h3>
-        <p>Press "Gallery" to browse cat-eared skins other people made, try one on or download it. To add yours, type a name (optional) under Texture and press Share. Shared skins are public.</p>
+        <p>Press "Gallery" to browse cat-eared skins other people made, try one on or download it. Every skin downloaded with cat ears is added to the gallery automatically. Type a name under Texture if you want it shown with your skin.</p>
         <h3>Does it work on phones?</h3>
         <p>Yes. Catify works on phones, tablets and computers. Drag to turn the model and pinch to zoom.</p>
       </div>
@@ -245,6 +246,8 @@
   <p class="status gallery-status" id="galleryStatus" role="status"></p>
   <div class="gallery-foot"><button class="btn hidden" id="galleryMore">Show more</button></div>
 </dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <dialog class="save-dialog" id="saveDialog" aria-labelledby="saveTitle">
   <h2 id="saveTitle">Save your skin</h2>
@@ -1217,7 +1220,9 @@ document.getElementById("saveClose").addEventListener("click", () => saveDialog.
 saveDialog.addEventListener("click", e => { if (e.target === saveDialog) saveDialog.close(); });
 
 function download() {
-  saveSkin(window.Catify.getPNG(), `${state.skinName || "skin"}_cat.png`);
+  const png = window.Catify.getPNG();
+  saveSkin(png, `${state.skinName || "skin"}_cat.png`); // first, so phones still allow the share sheet
+  window.CatifyGallery?.onDownload(png);              // downloads also go into the community gallery
 }
 document.getElementById("downloadBtn").addEventListener("click", download);
 document.getElementById("downloadBtn2").addEventListener("click", download);
