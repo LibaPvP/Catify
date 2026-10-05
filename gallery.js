@@ -206,8 +206,10 @@ async function addToGallery(png, { quiet = false } = {}) {
   if (wait > 0) return say(`Please wait ${Math.ceil(wait / 1000)} seconds before sharing again.`, true);
   if (png.length >= 16000) return say("This skin is too detailed to share (file too big).", true);
 
-  const name = cleanName(shareName.value);
-  store.set("shareName", name);
+  const typed = cleanName(shareName.value);
+  store.set("shareName", typed);
+  // no name typed: use the Minecraft username the skin was loaded with (if any)
+  const name = typed || cleanName(window.Catify.mcName() || "");
   shareBtn.disabled = true;
   if (!quiet) setStatus(shareStatus, "Sharing…");
   try {
