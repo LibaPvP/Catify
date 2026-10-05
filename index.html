@@ -196,7 +196,7 @@
         <div class="share" id="shareBox">
           <div class="field-label">Name shown in the gallery, or share without downloading</div>
           <div class="row">
-            <input type="text" class="grow" id="shareName" placeholder="Your name (optional)" maxlength="20" autocomplete="nickname" spellcheck="false" aria-label="Your name for the gallery">
+            <input type="text" class="grow" id="shareName" placeholder="Name (empty = your MC username)" maxlength="20" autocomplete="nickname" spellcheck="false" aria-label="Your name for the gallery">
             <button class="btn" id="shareBtn">Share</button>
           </div>
           <p class="status" id="shareStatus" role="status">Everyone visiting Catify can see and download skins in the gallery.</p>
@@ -328,6 +328,7 @@ const state = {
   spin: false, walk: false,
   comparing: false,
   skinName: "sample",
+  mcName: "",   // Minecraft username of the loaded skin (empty for uploads)
 };
 const ORIGINAL_PINK = rgbToHsl(233, 149, 149);
 // state.mode / state.stops always point at the ear currently being edited
@@ -1012,6 +1013,7 @@ async function loadFile(file) {
     const img = await loadImage(url);
     if (!setSkinFromImage(img)) { status(`That image is ${img.width}×${img.height}. Skins need to be 64×64 or 64×32.`, true); return; }
     state.skinName = file.name.replace(/\.png$/i, "");
+    state.mcName = "";
     status(`Loaded ${file.name} (${state.slim ? "slim" : "classic"} arms detected).`);
     compose();
   } catch (e) {
@@ -1149,6 +1151,7 @@ async function loadUsername() {
       if (typeof res.slim === "boolean") setModel(res.slim);
       console.info(`Catify: skin loaded via ${res.source || "fallback service"}`);
       state.skinName = res.name || name;
+      state.mcName = state.skinName;
       status(`Loaded ${state.skinName}'s skin (${state.slim ? "slim" : "classic"} arms).`);
       compose();
       return;
@@ -1258,12 +1261,14 @@ window.Catify = {
   renderThumb,
   saveSkin,
   isSlim: () => state.slim,
+  mcName: () => state.mcName,
   // load a finished skin from the gallery exactly as it was shared
   async loadShared(dataUrl, { name, slim } = {}) {
     const img = await loadImage(dataUrl);
     if (!setSkinFromImage(img)) throw new Error("not a skin");
     if (typeof slim === "boolean") setModel(slim);
     state.skinName = (name || "gallery") + "_skin";
+    state.mcName = "";
     state.earsOn = false;
     document.getElementById("earsOn").checked = false;
     status(`Loaded ${name ? name + "'s" : "a"} skin from the gallery. Turn on "Show cat ears" to recolour the ears.`);
