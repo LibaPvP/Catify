@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#2b2033" media="(prefers-color-scheme: dark)">
 <title>Catify – Add Cat Ears to Your Minecraft Skin (Free 3D Editor)</title>
 <meta name="description" content="Add cat ears to any Minecraft skin in seconds. Load your skin by username or PNG, pick ear colours and gradients, preview it in 3D and download it. Free, no sign-up.">
-<meta name="keywords" content="minecraft cat ears, catgirl minecraft skin, minecraft skin editor, cat ear skin, neko minecraft skin, minecraft skin ears">
+<meta name="keywords" content="minecraft cat ears, catgirl minecraft skin, catboy minecraft skin, minecraft skin editor, cat ear skin, neko minecraft skin, minecraft skin ears">
 <meta name="author" content="Liba">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://libapvp.github.io/Catify/">
@@ -16,7 +16,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Catify">
 <meta property="og:title" content="Catify – Add Cat Ears to Your Minecraft Skin">
-<meta property="og:description" content="Turn any Minecraft skin into a catgirl. Pick ear colours and gradients, preview in 3D, download. Free.">
+<meta property="og:description" content="Turn any Minecraft skin into a catgirl or catboy. Pick ear colours and gradients, preview in 3D, download. Free.">
 <meta property="og:url" content="https://libapvp.github.io/Catify/">
 <meta property="og:image" content="https://libapvp.github.io/Catify/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -24,7 +24,7 @@
 <meta property="og:image:alt" content="A Minecraft skin wearing pink cat ears in the Catify editor">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Catify – Add Cat Ears to Your Minecraft Skin">
-<meta name="twitter:description" content="Turn any Minecraft skin into a catgirl. Pick ear colours, preview in 3D, download. Free.">
+<meta name="twitter:description" content="Turn any Minecraft skin into a catgirl or catboy. Pick ear colours, preview in 3D, download. Free.">
 <meta name="twitter:image" content="https://libapvp.github.io/Catify/og-image.png">
 
 <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
@@ -57,8 +57,9 @@
 
 <header class="bar">
   <h1 class="brand"><span class="brand-word">Catify</span></h1>
-  <p class="tagline">Turn any Minecraft skin into a catgirl, <em>nya~</em></p>
+  <p class="tagline">Turn any Minecraft skin into a <span class="cat-word">catgirl</span>, <em>nya~</em></p>
   <span class="spacer"></span>
+  <button class="btn" id="galleryBtn">Gallery</button>
   <button class="btn primary" id="downloadBtn">Download skin</button>
 </header>
 
@@ -189,6 +190,15 @@
       <div class="sec">
         <div class="tex-wrap"><canvas id="texPreview" width="256" height="256" aria-label="Flat skin texture with ears"></canvas></div>
         <button class="btn primary" id="downloadBtn2">Download skin</button>
+
+        <div class="share" id="shareBox">
+          <div class="field-label">Share to the community gallery</div>
+          <div class="row">
+            <input type="text" class="grow" id="shareName" placeholder="Your name (optional)" maxlength="20" autocomplete="nickname" spellcheck="false" aria-label="Your name for the gallery">
+            <button class="btn" id="shareBtn">Share</button>
+          </div>
+          <p class="status" id="shareStatus" role="status">Everyone visiting Catify can see and download shared skins.</p>
+        </div>
       </div>
     </details>
 
@@ -196,7 +206,7 @@
     <details id="about">
       <summary>About Catify</summary>
       <div class="sec about">
-        <p>Catify is a free online tool that adds cat ears to any Minecraft skin. Load your skin with your Minecraft username or upload the PNG, choose an ear colour or a gradient, check the result in the 3D preview, and download the new skin. Everything happens in your browser, nothing is uploaded and you don't need an account.</p>
+        <p>Catify is a free online tool that adds cat ears to any Minecraft skin and turns it into a <span class="cat-word">catgirl</span>. Load your skin with your Minecraft username or upload the PNG, choose an ear colour or a gradient, check the result in the 3D preview, and download the new skin. Everything happens in your browser and you don't need an account. Your skin is only uploaded if you choose to share it to the community gallery.</p>
 
         <h2>How to add cat ears to your Minecraft skin</h2>
         <ol>
@@ -215,6 +225,8 @@
         <p>Keep "Clear where the ears are" selected under the ear settings. It removes only the outer-layer pixels that sit on top of the ears and keeps the rest of your hat or hair.</p>
         <h3>Why is my old skin showing after a username lookup?</h3>
         <p>Skin services can take up to an hour to notice a skin change. Upload the PNG instead to use your newest skin right away.</p>
+        <h3>What is the community gallery?</h3>
+        <p>Press "Gallery" to browse cat-eared skins other people made, try one on or download it. To add yours, type a name (optional) under Texture and press Share. Shared skins are public.</p>
         <h3>Does it work on phones?</h3>
         <p>Yes. Catify works on phones, tablets and computers. Drag to turn the model and pinch to zoom.</p>
       </div>
@@ -222,8 +234,21 @@
   </aside>
 </main>
 
+<dialog class="gallery" id="gallery" aria-labelledby="galleryTitle">
+  <div class="gallery-head">
+    <h2 id="galleryTitle">Community gallery</h2>
+    <p class="gallery-sub"><span class="cat-word" data-cap="1">Catgirl</span> skins made by everyone. Tap one to try it on or download it.</p>
+    <button class="btn small gallery-close" id="galleryClose" aria-label="Close gallery">Close</button>
+  </div>
+  <div class="gallery-grid" id="galleryGrid"></div>
+  <p class="status gallery-status" id="galleryStatus" role="status"></p>
+  <div class="gallery-foot"><button class="btn hidden" id="galleryMore">Show more</button></div>
+</dialog>
+
 <noscript><p style="padding:16px">Catify needs JavaScript to add cat ears to your Minecraft skin. Please turn JavaScript on.</p></noscript>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="gallery-config.js"></script>
+<script type="module" src="gallery.js"></script>
 <script>
 (() => {
 "use strict";
@@ -509,43 +534,86 @@ function makeBox(w, h, d, u, v, inflate, mat) {
   return new THREE.Mesh(g, mat);
 }
 
-function buildModel() {
-  if (model) {
-    scene.remove(model);
-    model.traverse(o => { if (o.geometry) o.geometry.dispose(); });
-  }
-  model = new THREE.Group();
-  const aw = state.slim ? 3 : 4;
-  const layer = (group, w, h, d, uv, uv2, inflate, offset) => {
-    const base = makeBox(w, h, d, uv[0], uv[1], 0, baseMat);
-    const over = makeBox(w, h, d, uv2[0], uv2[1], inflate, overlayMat);
+// Builds a player model; returns { group, parts } so the gallery thumbnails can reuse it
+function createPlayer(bMat, oMat, slim) {
+  const group = new THREE.Group(), p = {};
+  const aw = slim ? 3 : 4;
+  const layer = (g, w, h, d, uv, uv2, inflate, offset) => {
+    const base = makeBox(w, h, d, uv[0], uv[1], 0, bMat);
+    const over = makeBox(w, h, d, uv2[0], uv2[1], inflate, oMat);
     base.position.copy(offset); over.position.copy(offset);
     base.userData.layer = "base"; over.userData.layer = "overlay";
     over.renderOrder = 1;
-    group.add(base, over);
+    g.add(base, over);
   };
-  const pivot = (x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); model.add(g); return g; };
+  const pivot = (x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); group.add(g); return g; };
 
-  parts.head = pivot(0, 24, 0);
-  layer(parts.head, 8, 8, 8, [0, 0], [32, 0], .5, new THREE.Vector3(0, 4, 0));
-
-  parts.body = pivot(0, 18, 0);
-  layer(parts.body, 8, 12, 4, [16, 16], [16, 32], .25, new THREE.Vector3(0, 0, 0));
-
+  p.head = pivot(0, 24, 0);
+  layer(p.head, 8, 8, 8, [0, 0], [32, 0], .5, new THREE.Vector3(0, 4, 0));
+  p.body = pivot(0, 18, 0);
+  layer(p.body, 8, 12, 4, [16, 16], [16, 32], .25, new THREE.Vector3(0, 0, 0));
   const ax = 4 + aw / 2;
-  parts.rArm = pivot(-ax, 22, 0);
-  layer(parts.rArm, aw, 12, 4, [40, 16], [40, 32], .25, new THREE.Vector3(0, -4, 0));
-  parts.lArm = pivot(ax, 22, 0);
-  layer(parts.lArm, aw, 12, 4, [32, 48], [48, 48], .25, new THREE.Vector3(0, -4, 0));
+  p.rArm = pivot(-ax, 22, 0);
+  layer(p.rArm, aw, 12, 4, [40, 16], [40, 32], .25, new THREE.Vector3(0, -4, 0));
+  p.lArm = pivot(ax, 22, 0);
+  layer(p.lArm, aw, 12, 4, [32, 48], [48, 48], .25, new THREE.Vector3(0, -4, 0));
+  p.rLeg = pivot(-2, 12, 0);
+  layer(p.rLeg, 4, 12, 4, [0, 16], [0, 32], .25, new THREE.Vector3(0, -6, 0));
+  p.lLeg = pivot(2, 12, 0);
+  layer(p.lLeg, 4, 12, 4, [16, 48], [0, 48], .25, new THREE.Vector3(0, -6, 0));
+  return { group, parts: p };
+}
+function disposeGroup(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
 
-  parts.rLeg = pivot(-2, 12, 0);
-  layer(parts.rLeg, 4, 12, 4, [0, 16], [0, 32], .25, new THREE.Vector3(0, -6, 0));
-  parts.lLeg = pivot(2, 12, 0);
-  layer(parts.lLeg, 4, 12, 4, [16, 48], [0, 48], .25, new THREE.Vector3(0, -6, 0));
-
+function buildModel() {
+  if (model) { scene.remove(model); disposeGroup(model); }
+  const built = createPlayer(baseMat, overlayMat, state.slim);
+  model = built.group;
+  Object.assign(parts, built.parts);
   scene.add(model);
   applyLayerVisibility();
 }
+
+/* Gallery thumbnails: one small offscreen renderer, reused for every card */
+let thumb = null;
+function renderThumb(img, slim) {
+  if (!window.THREE) return null;
+  if (!thumb) {
+    const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    r.setPixelRatio(1); r.setSize(240, 300, false);
+    r.outputEncoding = THREE.sRGBEncoding;
+    const sc = new THREE.Scene();
+    sc.add(new THREE.AmbientLight(0xffffff, .72));
+    const sun = new THREE.DirectionalLight(0xffffff, .42); sun.position.set(.4, 1, .8); sc.add(sun);
+    const cam = new THREE.PerspectiveCamera(30, 240 / 300, .5, 200);
+    // three-quarter view, a little from above, framing head and body so the ears are big
+    const th = .5, ph = 1.3, rad = 57, tgt = new THREE.Vector3(0, 22.5, 0);
+    cam.position.set(rad * Math.sin(ph) * Math.sin(th), tgt.y + rad * Math.cos(ph), rad * Math.sin(ph) * Math.cos(th));
+    cam.lookAt(tgt);
+    const tc = document.createElement("canvas"); tc.width = tc.height = 64;
+    const tex = new THREE.CanvasTexture(tc);
+    tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.encoding = THREE.sRGBEncoding;
+    const bm = new THREE.MeshLambertMaterial({ map: tex });
+    const om = new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: .1, side: THREE.DoubleSide });
+    thumb = { r, sc, cam, tc, tex, bm, om, models: {} };
+  }
+  const t = thumb;
+  const key = slim ? "slim" : "classic";
+  if (!t.models[key]) {
+    const m = createPlayer(t.bm, t.om, slim);
+    m.parts.rArm.rotation.z = -.08; m.parts.lArm.rotation.z = .08; // tiny pose so it looks alive
+    m.parts.head.rotation.y = -.12;
+    t.models[key] = m.group;
+  }
+  Object.values(t.models).forEach(g => t.sc.remove(g));
+  t.sc.add(t.models[key]);
+  const ctx = t.tc.getContext("2d");
+  ctx.clearRect(0, 0, 64, 64); ctx.drawImage(img, 0, 0, 64, 64);
+  t.tex.needsUpdate = true;
+  t.r.render(t.sc, t.cam);
+  return t.r.domElement.toDataURL("image/png");
+}
+
 function applyLayerVisibility() {
   if (!model) return;
   model.traverse(o => {
@@ -1042,6 +1110,49 @@ function download() {
 }
 document.getElementById("downloadBtn").addEventListener("click", download);
 document.getElementById("downloadBtn2").addEventListener("click", download);
+
+/* ------------- "catgirl" and "catboy" take turns every 5 seconds ------------- */
+(() => {
+  const words = ["catgirl", "catboy"];
+  let i = 0;
+  setInterval(() => {
+    i = (i + 1) % words.length;
+    document.querySelectorAll(".cat-word").forEach(el => {
+      el.classList.add("swap-out");
+      setTimeout(() => {
+        const w = words[i];
+        el.textContent = el.dataset.cap ? w[0].toUpperCase() + w.slice(1) : w;
+        el.classList.remove("swap-out");
+      }, 220);
+    });
+  }, 5000);
+})();
+
+/* -------------------- small API used by gallery.js -------------------- */
+window.Catify = {
+  // finished skin as a PNG data URL (always with ears, ignores "hold for original")
+  getPNG() {
+    const was = state.comparing; state.comparing = false; compose();
+    const url = outCanvas.toDataURL("image/png");
+    state.comparing = was; compose();
+    return url;
+  },
+  earsOn: () => state.earsOn,
+  renderThumb,
+  isSlim: () => state.slim,
+  // load a finished skin from the gallery exactly as it was shared
+  async loadShared(dataUrl, { name, slim } = {}) {
+    const img = await loadImage(dataUrl);
+    if (!setSkinFromImage(img)) throw new Error("not a skin");
+    if (typeof slim === "boolean") setModel(slim);
+    state.skinName = (name || "gallery") + "_skin";
+    state.earsOn = false;
+    document.getElementById("earsOn").checked = false;
+    status(`Loaded ${name ? name + "'s" : "a"} skin from the gallery. Turn on "Show cat ears" to recolour the ears.`);
+    compose();
+    goPreset("front");
+  },
+};
 
 /* --------------------------------- boot --------------------------------- */
 (async function boot() {
