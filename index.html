@@ -1037,27 +1037,53 @@ function texturesFromProperties(props) {
     return { url: t.url.replace(/^http:/, "https:"), slim: t.metadata?.model === "slim" };
   } catch { return null; }
 }
-const firstOk = async (fns) => { for (const f of fns) { try { return await f(); } catch (e) { console.warn(e.message || e); } } throw new Error("none worked"); };
+// Tries each function in order and returns the first result that works
+const firstOk = async (fns) => {
+  for (const [label, f] of fns) {
+    try { const v = await f(); return { v, label }; }
+    catch (e) { console.warn(`Skin lookup failed (${label}):`, e.message || e); }
+  }
+  throw new Error("none worked");
+};
+
+// Profile from a Mojang mirror that allows websites to ask (same data as Mojang, barely cached)
+async function mojangMirror(name, base) {
+  const who = await fetchJson(`${base}/users/profiles/minecraft/${enc(name)}`);
+  if (!who?.id) throw new Error(`${base}: player not found`);
+  const prof = await fetchJson(`${base}/session/minecraft/profile/${who.id}`);
+  return { uuid: who.id, name: who.name || prof.name, tex: texturesFromProperties(prof.properties) };
+}
+async function playerdbProfile(name) {
+  const j = await fetchJson(`https://playerdb.co/api/player/minecraft/${enc(name)}`);
+  const p = j?.data?.player;
+  if (!j.success || !p) throw new Error("playerdb: player not found");
+  return { uuid: p.raw_id || p.id.replace(/-/g, ""), name: p.username, tex: texturesFromProperties(p.properties) };
+}
 
 /* Tried in order, each only if the one before failed:
-   1. PlayerDB + Mojang's own skin file (always the current skin)
+   1. the player's current skin: profile from a Mojang mirror (or PlayerDB), then the skin file itself.
+      Skin files are named after their content, so a texture link is never out of date.
    2. Ashcon (real skin, sometimes a bit out of date, rate-limited)
    3. image services by username, which can show Steve/Alex when they have trouble */
 const SKIN_ROUNDS = [
   [
-    // PlayerDB: UUID + Mojang texture data -> real skin file from Mojang's texture server
     async name => {
-      const j = await fetchJson(`https://playerdb.co/api/player/minecraft/${enc(name)}`);
-      const p = j?.data?.player;
-      if (!j.success || !p) throw new Error("playerdb: player not found");
-      const uuid = p.raw_id || p.id.replace(/-/g, "");
-      const tex = texturesFromProperties(p.properties);
-      const img = await firstOk([
-        ...(tex ? [() => fetchImage(tex.url)] : []),
-        () => fetchImage(`https://api.mineatar.io/skin/${uuid}`),
-        () => fetchImage(`https://mc-heads.net/skin/${uuid}`),
+      const { v: prof, label: profFrom } = await firstOk([
+        ["mowojang", () => mojangMirror(name, "https://mowojang.matdoes.dev")],
+        ["mowojang backup", () => mojangMirror(name, "https://mowojang.seraph.si")],
+        ["playerdb", () => playerdbProfile(name)],
       ]);
-      return { img, slim: tex ? tex.slim : undefined, name: p.username, uuid };
+      const hash = prof.tex?.url.split("/").pop();
+      const { v: img, label } = await firstOk([
+        ...(prof.tex ? [
+          ["Mojang texture server", () => fetchImage(prof.tex.url)],
+          ["mc-heads by texture", () => fetchImage(`https://mc-heads.net/skin/${hash}`)],
+        ] : []),
+        // these two go by player ID and may be a few hours behind
+        ["mineatar", () => fetchImage(`https://api.mineatar.io/skin/${prof.uuid}`)],
+        ["mc-heads", () => fetchImage(`https://mc-heads.net/skin/${prof.uuid}`)],
+      ]);
+      return { img, slim: prof.tex ? prof.tex.slim : undefined, name: prof.name, source: `${profFrom} + ${label}` };
     },
   ],
   [
@@ -1066,7 +1092,7 @@ const SKIN_ROUNDS = [
       const j = await fetchJson(`https://api.ashcon.app/mojang/v2/user/${enc(name)}`);
       const data = j?.textures?.skin?.data;
       if (!data) throw new Error("ashcon: no skin data");
-      return { img: await loadImage("data:image/png;base64," + data), slim: !!j.textures.slim, name: j.username };
+      return { img: await loadImage("data:image/png;base64," + data), slim: !!j.textures.slim, name: j.username, source: "ashcon" };
     },
   ],
   [
@@ -1105,6 +1131,7 @@ async function loadUsername() {
         skinCtx.getImageData(0, 0, 1, 1); // throws if the canvas is tainted
       } catch (e) { console.warn("Skin unusable:", e.message); continue; }
       if (typeof res.slim === "boolean") setModel(res.slim);
+      console.info(`Catify: skin loaded via ${res.source || "fallback service"}`);
       state.skinName = res.name || name;
       status(`Loaded ${state.skinName}'s skin (${state.slim ? "slim" : "classic"} arms).`);
       compose();
