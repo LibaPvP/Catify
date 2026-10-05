@@ -80,9 +80,7 @@ function loadImg(src) {
 }
 
 function downloadDataUrl(url, name) {
-  const a = document.createElement("a");
-  a.href = url; a.download = `${name || "catify"}_cat.png`;
-  document.body.appendChild(a); a.click(); a.remove();
+  window.Catify.saveSkin(url, `${name || "catify"}_cat.png`);
 }
 
 /* ------------------------------ gallery ------------------------------ */
