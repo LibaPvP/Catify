@@ -1039,8 +1039,10 @@ function texturesFromProperties(props) {
 }
 const firstOk = async (fns) => { for (const f of fns) { try { return await f(); } catch (e) { console.warn(e.message || e); } } throw new Error("none worked"); };
 
-/* Two rounds. Round 1 asks services that hand back the player's real Mojang skin.
-   Round 2 (only if round 1 fails) uses image services, which can show Steve/Alex when they have trouble. */
+/* Tried in order, each only if the one before failed:
+   1. PlayerDB + Mojang's own skin file (always the current skin)
+   2. Ashcon (real skin, sometimes a bit out of date, rate-limited)
+   3. image services by username, which can show Steve/Alex when they have trouble */
 const SKIN_ROUNDS = [
   [
     // PlayerDB: UUID + Mojang texture data -> real skin file from Mojang's texture server
@@ -1057,7 +1059,9 @@ const SKIN_ROUNDS = [
       ]);
       return { img, slim: tex ? tex.slim : undefined, name: p.username, uuid };
     },
-    // Ashcon: the skin itself as base64 (can be a little out of date)
+  ],
+  [
+    // Ashcon, only if PlayerDB failed (it rate-limits busy sites, so don't ask it every time): the skin itself as base64 (can be a little out of date)
     async name => {
       const j = await fetchJson(`https://api.ashcon.app/mojang/v2/user/${enc(name)}`);
       const data = j?.textures?.skin?.data;
