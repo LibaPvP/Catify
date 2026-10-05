@@ -190,6 +190,7 @@
       <div class="sec">
         <div class="tex-wrap"><canvas id="texPreview" width="256" height="256" aria-label="Flat skin texture with ears"></canvas></div>
         <button class="btn primary" id="downloadBtn2">Download skin</button>
+        <p class="field-label save-tip hidden" id="saveTip">On a phone, choose <strong>Save to Files</strong>. Saving to Photos can add a white background, which breaks the see-through parts of the skin.</p>
 
         <div class="share" id="shareBox">
           <div class="field-label">Share to the community gallery</div>
@@ -243,6 +244,18 @@
   <div class="gallery-grid" id="galleryGrid"></div>
   <p class="status gallery-status" id="galleryStatus" role="status"></p>
   <div class="gallery-foot"><button class="btn hidden" id="galleryMore">Show more</button></div>
+</dialog>
+
+<dialog class="save-dialog" id="saveDialog" aria-labelledby="saveTitle">
+  <h2 id="saveTitle">Save your skin</h2>
+  <div class="save-preview"><img id="saveImg" alt="Your finished skin file"></div>
+  <p>Press and hold the skin above, then choose <strong>Save to Files</strong> or <strong>Download image</strong>.</p>
+  <p class="save-warn">Avoid "Save to Photos": some phones add a white background there, and Minecraft then shows white blocks where the skin should be see-through.</p>
+  <div class="save-actions">
+    <a class="btn primary" id="saveLink" href="#" download>Download</a>
+    <button class="btn" id="saveClose">Done</button>
+  </div>
+  <p class="save-small">If nothing works here, open this site in Safari or Chrome instead of inside another app.</p>
 </dialog>
 
 <noscript><p style="padding:16px">Catify needs JavaScript to add cat ears to your Minecraft skin. Please turn JavaScript on.</p></noscript>
@@ -1157,19 +1170,58 @@ document.addEventListener("paste", e => {
 });
 
 /* ------------------------------ download ------------------------------ */
+/* Saving. Phones get the share sheet ("Save to Files" keeps the PNG exactly as it is);
+   computers get a normal download. Everything before navigator.share() is synchronous,
+   because iPhones only allow the share sheet straight after a tap. */
+function dataUrlToBlob(url) {
+  const bin = atob(url.split(",")[1]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: "image/png" });
+}
+const isTouch = matchMedia("(pointer: coarse)").matches;
+
+function saveSkin(dataUrl, filename) {
+  const blob = dataUrlToBlob(dataUrl);
+  if (isTouch) {
+    let file = null;
+    try { file = new File([blob], filename, { type: "image/png" }); } catch { /* very old browser */ }
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: "Catify skin" }).catch(e => {
+        if (e.name !== "AbortError") { console.warn("Share failed:", e); openSaveDialog(blob, filename); }
+      });
+      return;
+    }
+    openSaveDialog(blob, filename); // e.g. the browser inside Discord or Instagram
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+// Fallback for phones without a share sheet: show the real PNG so it can be saved by pressing and holding
+const saveDialog = document.getElementById("saveDialog");
+let saveUrl = null;
+function openSaveDialog(blob, filename) {
+  if (saveUrl) URL.revokeObjectURL(saveUrl);
+  saveUrl = URL.createObjectURL(blob);
+  document.getElementById("saveImg").src = saveUrl;
+  const link = document.getElementById("saveLink");
+  link.href = saveUrl; link.download = filename;
+  if (!saveDialog.open) saveDialog.showModal();
+}
+document.getElementById("saveClose").addEventListener("click", () => saveDialog.close());
+saveDialog.addEventListener("click", e => { if (e.target === saveDialog) saveDialog.close(); });
+
 function download() {
-  const wasComparing = state.comparing; state.comparing = false; compose();
-  outCanvas.toBlob(blob => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${state.skinName || "skin"}_cat.png`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  }, "image/png");
-  state.comparing = wasComparing;
+  saveSkin(window.Catify.getPNG(), `${state.skinName || "skin"}_cat.png`);
 }
 document.getElementById("downloadBtn").addEventListener("click", download);
 document.getElementById("downloadBtn2").addEventListener("click", download);
+if (isTouch) document.getElementById("saveTip").classList.remove("hidden");
 
 /* ------------- "catgirl" and "catboy" take turns every 5 seconds ------------- */
 (() => {
@@ -1199,6 +1251,7 @@ window.Catify = {
   },
   earsOn: () => state.earsOn,
   renderThumb,
+  saveSkin,
   isSlim: () => state.slim,
   // load a finished skin from the gallery exactly as it was shared
   async loadShared(dataUrl, { name, slim } = {}) {
