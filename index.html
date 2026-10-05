@@ -1006,7 +1006,7 @@ async function loadFile(file) {
 /* Username lookup. Mojang's own API blocks requests from web pages, so this tries
    several community services in turn and uses the first one that answers. */
 // Timeout without AbortSignal: some sandboxed previews wrap fetch() and can't pass signals through
-function fetchT(url, ms = 7000) {
+function fetchT(url, ms = 9000) {
   return Promise.race([
     fetch(url, { cache: "no-store" }),
     new Promise((_, rej) => setTimeout(() => rej(new Error(`${url} -> timed out`)), ms)),
@@ -1027,31 +1027,59 @@ async function fetchImage(url) {
   try { return await loadImage(obj); } finally { URL.revokeObjectURL(obj); }
 }
 const enc = encodeURIComponent;
-const SKIN_LOOKUPS = [
-  // 1. PlayerDB for the UUID (never changes), then skin servers that refresh quickly
-  async name => {
-    const j = await fetchJson(`https://playerdb.co/api/player/minecraft/${enc(name)}`);
-    const p = j?.data?.player;
-    if (!j.success || !p) throw new Error("playerdb: player not found");
-    const uuid = p.raw_id || p.id.replace(/-/g, "");
-    const urls = [`https://crafatar.com/skins/${uuid}`, `https://mc-heads.net/skin/${uuid}`, p.skin_texture]
-      .filter((u, i, a) => u && a.indexOf(u) === i);
-    for (const u of urls) {
-      try { return { img: await fetchImage(u), name: p.username }; } catch (e) { console.warn(e.message); }
-    }
-    throw new Error("playerdb: no skin server answered");
-  },
-  // 2. Image services that accept usernames directly
-  async name => ({ img: await fetchImage(`https://mc-heads.net/skin/${enc(name)}`) }),
-  async name => ({ img: await fetchImage(`https://minotar.net/skin/${enc(name)}`) }),
-  // 3. Ashcon: reliable, but can keep an old skin cached for a long time, so it goes last
-  async name => {
-    const j = await fetchJson(`https://api.ashcon.app/mojang/v2/user/${enc(name)}`);
-    const data = j?.textures?.skin?.data;
-    if (!data) throw new Error("ashcon: no skin data");
-    return { img: await loadImage("data:image/png;base64," + data), slim: !!j.textures.slim, name: j.username };
-  },
+// Reads the Mojang "textures" property (base64 JSON) that some services pass through
+function texturesFromProperties(props) {
+  const prop = (props || []).find(p => p && p.name === "textures");
+  if (!prop) return null;
+  try {
+    const t = JSON.parse(atob(prop.value)).textures?.SKIN;
+    if (!t?.url) return null;
+    return { url: t.url.replace(/^http:/, "https:"), slim: t.metadata?.model === "slim" };
+  } catch { return null; }
+}
+const firstOk = async (fns) => { for (const f of fns) { try { return await f(); } catch (e) { console.warn(e.message || e); } } throw new Error("none worked"); };
+
+/* Two rounds. Round 1 asks services that hand back the player's real Mojang skin.
+   Round 2 (only if round 1 fails) uses image services, which can show Steve/Alex when they have trouble. */
+const SKIN_ROUNDS = [
+  [
+    // PlayerDB: UUID + Mojang texture data -> real skin file from Mojang's texture server
+    async name => {
+      const j = await fetchJson(`https://playerdb.co/api/player/minecraft/${enc(name)}`);
+      const p = j?.data?.player;
+      if (!j.success || !p) throw new Error("playerdb: player not found");
+      const uuid = p.raw_id || p.id.replace(/-/g, "");
+      const tex = texturesFromProperties(p.properties);
+      const img = await firstOk([
+        ...(tex ? [() => fetchImage(tex.url)] : []),
+        () => fetchImage(`https://api.mineatar.io/skin/${uuid}`),
+        () => fetchImage(`https://mc-heads.net/skin/${uuid}`),
+      ]);
+      return { img, slim: tex ? tex.slim : undefined, name: p.username, uuid };
+    },
+    // Ashcon: the skin itself as base64 (can be a little out of date)
+    async name => {
+      const j = await fetchJson(`https://api.ashcon.app/mojang/v2/user/${enc(name)}`);
+      const data = j?.textures?.skin?.data;
+      if (!data) throw new Error("ashcon: no skin data");
+      return { img: await loadImage("data:image/png;base64," + data), slim: !!j.textures.slim, name: j.username };
+    },
+  ],
+  [
+    async name => ({ img: await fetchImage(`https://mc-heads.net/skin/${enc(name)}`) }),
+    async name => ({ img: await fetchImage(`https://minotar.net/skin/${enc(name)}`) }),
+  ],
 ];
+
+// Runs a round's lookups at the same time and returns the best one that worked (earlier = better)
+async function runRound(lookups, name) {
+  const results = await Promise.allSettled(lookups.map(fn => fn(name)));
+  for (const r of results) {
+    if (r.status === "fulfilled") return r.value;
+    console.warn("Skin lookup failed:", r.reason?.message || r.reason);
+  }
+  return null;
+}
 
 let lookupBusy = false;
 async function loadUsername() {
@@ -1065,17 +1093,18 @@ async function loadUsername() {
   btn.disabled = true;
   status(`Looking up ${name}…`);
   try {
-    for (const lookup of SKIN_LOOKUPS) {
+    for (const round of SKIN_ROUNDS) {
+      const res = await runRound(round, name);
+      if (!res) continue;
       try {
-        const res = await lookup(name);
         if (!setSkinFromImage(res.img)) throw new Error("image is not a skin");
         skinCtx.getImageData(0, 0, 1, 1); // throws if the canvas is tainted
-        if (typeof res.slim === "boolean") setModel(res.slim);
-        state.skinName = res.name || name;
-        status(`Loaded ${state.skinName}'s skin (${state.slim ? "slim" : "classic"} arms).`);
-        compose();
-        return;
-      } catch (e) { console.warn("Skin lookup failed:", e.message || e); }
+      } catch (e) { console.warn("Skin unusable:", e.message); continue; }
+      if (typeof res.slim === "boolean") setModel(res.slim);
+      state.skinName = res.name || name;
+      status(`Loaded ${state.skinName}'s skin (${state.slim ? "slim" : "classic"} arms).`);
+      compose();
+      return;
     }
     status(`Couldn't get a skin for "${name}". Check the spelling, or save the skin from namemc.com and upload the PNG.`, true);
   } finally {
