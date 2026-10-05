@@ -196,21 +196,20 @@ dialog.addEventListener("click", e => { if (e.target === dialog) dialog.close();
 /* ------------------------------ sharing ------------------------------ */
 let lastSharedPng = store.get("lastSharedPng", "");
 
-async function share() {
-  if (!configured) { setStatus(shareStatus, "The gallery isn't set up yet.", true); return; }
-  if (!window.Catify.earsOn()) { setStatus(shareStatus, "Turn on \"Show cat ears\" first, this is a cat ear gallery!", true); return; }
-
+// Adds a skin to the gallery. Returns a short message describing what happened.
+async function addToGallery(png, { quiet = false } = {}) {
+  const say = (msg, err) => { if (!quiet) setStatus(shareStatus, msg, err); return { ok: false, msg }; };
+  if (!configured) return say("The gallery isn't set up yet.", true);
+  if (!window.Catify.earsOn()) return say("Turn on \"Show cat ears\" first, this is a cat ear gallery!", true);
+  if (png === lastSharedPng) return say("You already shared this exact skin.", true);
   const wait = store.get("lastShareAt", 0) + SHARE_COOLDOWN_MS - Date.now();
-  if (wait > 0) { setStatus(shareStatus, `Please wait ${Math.ceil(wait / 1000)} seconds before sharing again.`, true); return; }
-
-  const png = window.Catify.getPNG();
-  if (png === lastSharedPng) { setStatus(shareStatus, "You already shared this exact skin.", true); return; }
-  if (png.length >= 16000) { setStatus(shareStatus, "This skin is too detailed to share (file too big).", true); return; }
+  if (wait > 0) return say(`Please wait ${Math.ceil(wait / 1000)} seconds before sharing again.`, true);
+  if (png.length >= 16000) return say("This skin is too detailed to share (file too big).", true);
 
   const name = cleanName(shareName.value);
   store.set("shareName", name);
   shareBtn.disabled = true;
-  setStatus(shareStatus, "Sharing…");
+  if (!quiet) setStatus(shareStatus, "Sharing…");
   try {
     const { db, fs } = await firebase();
     await fs.addDoc(fs.collection(db, "skins"), {
@@ -221,13 +220,30 @@ async function share() {
     store.set("lastShareAt", Date.now());
     setStatus(shareStatus, "Shared! Your skin is now in the gallery, nya~");
     if (loadedOnce) refreshGallery();
+    return { ok: true };
   } catch (err) {
     console.warn("Share error:", err);
-    setStatus(shareStatus, "Sharing failed. Try again in a moment.", true);
+    return say("Sharing failed. Try again in a moment.", true);
   } finally {
     shareBtn.disabled = false;
   }
 }
+const share = () => addToGallery(window.Catify.getPNG());
+
+/* Every download is also added to the gallery (no need to press Share). */
+let toastTimer = null;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 4500);
+}
+window.CatifyGallery = {
+  async onDownload(png) {
+    const res = await addToGallery(png, { quiet: true });
+    if (res.ok) toast("Skin saved, and added to the community gallery, nya~");
+  },
+};
+
 shareBtn.addEventListener("click", share);
 shareName.addEventListener("keydown", e => { if (e.key === "Enter") share(); });
 
