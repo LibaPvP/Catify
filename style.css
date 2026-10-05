@@ -507,14 +507,42 @@ input[type="range"]::-moz-range-thumb {
   object-fit: contain;
   filter: drop-shadow(0 6px 8px rgba(91, 47, 82, .18));
 }
-.skin-meta { display: flex; flex-direction: column; padding: 8px 12px 4px; min-width: 0; }
+.skin-card { position: relative; }
+.skin-meta { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px 12px; min-width: 0; }
+.skin-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.gallery-sort { grid-column: 1 / -1; margin-top: 12px; max-width: 280px; }
+
+/* heart button */
+.heart {
+  display: inline-flex; align-items: center; gap: 5px; flex: none;
+  border: 2px solid var(--line); background: var(--cream); color: var(--ink);
+  border-radius: var(--r-pill); padding: 4px 10px 4px 8px; cursor: pointer;
+  font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.heart:hover { border-color: var(--pink); }
+.heart-icon {
+  width: 16px; height: 15px; background: var(--muted);
+  clip-path: path("M8 15 L1.4 8.4 A4 4 0 0 1 8 2.6 A4 4 0 0 1 14.6 8.4 Z");
+  transition: background .15s, transform .15s;
+}
+.heart[aria-pressed="true"] { border-color: var(--pink); background: var(--blush); }
+.heart[aria-pressed="true"] .heart-icon { background: var(--pink-deep); }
+.heart.pop .heart-icon { animation: heart-pop .35s ease-out; }
+@keyframes heart-pop { 40% { transform: scale(1.35); } }
 .skin-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .skin-time { font-size: 12px; color: var(--muted); }
 .skin-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px 12px; }
 .skin-actions .btn { flex: 1; padding-left: 8px; padding-right: 8px; }
 .skin-actions .primary-soft { background: var(--pink); color: var(--on-pink); border-color: var(--pink); flex-basis: 100%; }
 .skin-actions .primary-soft:hover { background: var(--pink-deep); border-color: var(--pink-deep); }
-.skin-report { color: var(--muted); }
+.skin-actions [data-act="download"], .skin-actions [data-act="link"] { flex: 1 1 0; min-width: 0; padding-left: 4px; padding-right: 4px; }
+.skin-actions [data-act="download"] { flex-grow: 1.6; }
+.skin-report {
+  align-self: flex-end; margin: 0 10px 8px; padding: 2px 4px;
+  border: 0; background: none; cursor: pointer;
+  font-size: 12px; font-weight: 700; color: var(--muted); text-decoration: underline;
+}
+.skin-report:disabled { text-decoration: none; cursor: default; }
 
 .skin-figure.is-3d { height: 186px; aspect-ratio: 240 / 300; image-rendering: auto; }
 
