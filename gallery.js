@@ -1,0 +1,238 @@
+/* =====================================================================
+   Catify community gallery
+   Stores shared skins in Firebase Firestore. Skins are tiny (64x64 PNG,
+   a few KB), so each one is saved straight into a database document as
+   a data URL; no file storage bucket is needed.
+   ===================================================================== */
+
+const FIREBASE_VERSION = "10.12.2";
+const PAGE_SIZE = 24;
+const HIDE_AFTER_REPORTS = 3;       // skins with this many reports disappear from the gallery
+const SHARE_COOLDOWN_MS = 60 * 1000; // one share per minute per browser
+
+const $ = id => document.getElementById(id);
+const dialog = $("gallery"), grid = $("galleryGrid"), more = $("galleryMore"), gStatus = $("galleryStatus");
+const shareBtn = $("shareBtn"), shareName = $("shareName"), shareStatus = $("shareStatus");
+
+const config = window.CATIFY_FIREBASE || {};
+const configured = !!(config.apiKey && config.projectId);
+
+/* ------------------------------ browser memory ------------------------------ */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("catify:" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("catify:" + k, JSON.stringify(v)); } catch { /* private mode */ } },
+};
+shareName.value = store.get("shareName", "");
+
+/* ------------------------------ Firebase setup ------------------------------ */
+let fb = null; // { db, fns }
+async function firebase() {
+  if (fb) return fb;
+  const base = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
+  const [{ initializeApp }, fs] = await Promise.all([
+    import(`${base}/firebase-app.js`),
+    import(`${base}/firebase-firestore.js`),
+  ]);
+  const app = initializeApp(config);
+  fb = { db: fs.getFirestore(app), fs };
+  return fb;
+}
+
+/* ------------------------------ helpers ------------------------------ */
+function setStatus(el, msg, isError) { el.textContent = msg; el.classList.toggle("error", !!isError); }
+
+function timeAgo(date) {
+  if (!date) return "just now";
+  const s = Math.max(1, Math.round((Date.now() - date.getTime()) / 1000));
+  const steps = [[60, "second"], [60, "minute"], [24, "hour"], [7, "day"], [4.35, "week"], [12, "month"], [Infinity, "year"]];
+  let n = s;
+  for (const [size, unit] of steps) {
+    if (n < size) { n = Math.floor(n); return `${n} ${unit}${n === 1 ? "" : "s"} ago`; }
+    n /= size;
+  }
+}
+
+const cleanName = v => v.replace(/[^A-Za-z0-9_ ]/g, "").replace(/\s+/g, " ").trim().slice(0, 20);
+
+/* Draws a flat front view of a skin (with the ear tips on top) for the gallery cards. */
+function drawFigure(canvas, img, slim) {
+  const ctx = canvas.getContext("2d");
+  const aw = slim ? 3 : 4;
+  canvas.width = 16; canvas.height = 33;
+  ctx.imageSmoothingEnabled = false;
+  const part = (sx, sy, w, h, dx, dy) => ctx.drawImage(img, sx, sy, w, h, dx, dy, w, h);
+  // ear tips: front row of the head's top face, base then hat layer
+  part(8, 7, 8, 1, 4, 0); part(40, 7, 8, 1, 4, 0);
+  // head
+  part(8, 8, 8, 8, 4, 1); part(40, 8, 8, 8, 4, 1);
+  // body
+  part(20, 20, 8, 12, 4, 9); part(20, 36, 8, 12, 4, 9);
+  // arms (the character's right arm is on the viewer's left)
+  part(44, 20, aw, 12, 4 - aw, 9); part(44, 36, aw, 12, 4 - aw, 9);
+  part(36, 52, aw, 12, 12, 9); part(52, 52, aw, 12, 12, 9);
+  // legs
+  part(4, 20, 4, 12, 4, 21); part(4, 36, 4, 12, 4, 21);
+  part(20, 52, 4, 12, 8, 21); part(4, 52, 4, 12, 8, 21);
+}
+
+function loadImg(src) {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+}
+
+function downloadDataUrl(url, name) {
+  const a = document.createElement("a");
+  a.href = url; a.download = `${name || "catify"}_cat.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ------------------------------ gallery ------------------------------ */
+let lastDoc = null, loading = false, loadedOnce = false;
+const reported = new Set(store.get("reported", []));
+
+function card(id, data) {
+  const el = document.createElement("article");
+  el.className = "skin-card";
+  const name = data.name || "Anonymous";
+  const when = data.createdAt?.toDate ? data.createdAt.toDate() : null;
+
+  // 3D thumbnail when WebGL is available, flat front view otherwise
+  const fig = document.createElement("img");
+  fig.className = "skin-figure";
+  fig.alt = `${name}'s skin`;
+  fig.decoding = "async";
+  loadImg(data.png).then(img => {
+    if (img.naturalWidth !== 64 || img.naturalHeight !== 64) { el.remove(); return; }
+    const url = (() => { try { return window.Catify.renderThumb(img, data.slim); } catch { return null; } })();
+    if (url) { fig.src = url; fig.classList.add("is-3d"); }
+    else { const c = document.createElement("canvas"); drawFigure(c, img, data.slim); fig.src = c.toDataURL(); }
+  }).catch(() => el.remove());
+
+  el.innerHTML = `
+    <div class="skin-stage"></div>
+    <div class="skin-meta"><span class="skin-name"></span><span class="skin-time"></span></div>
+    <div class="skin-actions">
+      <button class="btn small primary-soft" data-act="use">Try on</button>
+      <button class="btn small" data-act="download" aria-label="Download">Download</button>
+      <button class="btn small skin-report" data-act="report" title="Report this skin" aria-label="Report this skin">Report</button>
+    </div>`;
+  el.querySelector(".skin-stage").appendChild(fig);
+  el.querySelector(".skin-name").textContent = name;
+  el.querySelector(".skin-time").textContent = timeAgo(when);
+  const reportBtn = el.querySelector('[data-act="report"]');
+  if (reported.has(id)) { reportBtn.disabled = true; reportBtn.textContent = "Reported"; }
+
+  el.addEventListener("click", async e => {
+    const act = e.target.closest("button")?.dataset.act;
+    if (act === "use") {
+      try { await window.Catify.loadShared(data.png, { name: data.name, slim: data.slim }); dialog.close(); }
+      catch { setStatus(gStatus, "That skin couldn't be loaded.", true); }
+    } else if (act === "download") {
+      downloadDataUrl(data.png, (data.name || "gallery").replace(/\s+/g, "_"));
+    } else if (act === "report") {
+      if (!confirm("Report this skin as inappropriate? Skins with several reports are hidden.")) return;
+      try {
+        const { db, fs } = await firebase();
+        await fs.updateDoc(fs.doc(db, "skins", id), { reports: fs.increment(1) });
+        reported.add(id); store.set("reported", [...reported]);
+        reportBtn.disabled = true; reportBtn.textContent = "Reported";
+        el.classList.add("is-reported");
+      } catch (err) {
+        console.warn(err);
+        setStatus(gStatus, "Couldn't send the report. Try again later.", true);
+      }
+    }
+  });
+  return el;
+}
+
+async function loadPage() {
+  if (loading) return;
+  loading = true; more.disabled = true;
+  if (!lastDoc) setStatus(gStatus, "Loading skins…");
+  try {
+    const { db, fs } = await firebase();
+    const parts = [fs.collection(db, "skins"), fs.orderBy("createdAt", "desc")];
+    if (lastDoc) parts.push(fs.startAfter(lastDoc));
+    parts.push(fs.limit(PAGE_SIZE));
+    const snap = await fs.getDocs(fs.query(...parts));
+    let shown = 0;
+    snap.forEach(d => {
+      const data = d.data();
+      if ((data.reports || 0) >= HIDE_AFTER_REPORTS || typeof data.png !== "string") return;
+      grid.appendChild(card(d.id, data)); shown++;
+    });
+    lastDoc = snap.docs[snap.docs.length - 1] || lastDoc;
+    more.classList.toggle("hidden", snap.size < PAGE_SIZE);
+    if (!grid.children.length) setStatus(gStatus, "No skins yet. Be the first to share one!");
+    else setStatus(gStatus, "");
+    loadedOnce = true;
+  } catch (err) {
+    console.warn("Gallery error:", err);
+    setStatus(gStatus, "The gallery couldn't load right now. Check your connection and try again.", true);
+  } finally {
+    loading = false; more.disabled = false;
+  }
+}
+
+function refreshGallery() {
+  grid.innerHTML = ""; lastDoc = null; loadedOnce = false;
+  more.classList.add("hidden");
+  loadPage();
+}
+
+function openGallery() {
+  if (!dialog.open) dialog.showModal();
+  if (!configured) {
+    setStatus(gStatus, "The gallery isn't set up yet. The site owner needs to add the Firebase settings (see README).");
+    return;
+  }
+  if (!loadedOnce) loadPage();
+}
+
+$("galleryBtn").addEventListener("click", openGallery);
+$("galleryClose").addEventListener("click", () => dialog.close());
+more.addEventListener("click", loadPage);
+// click on the dimmed backdrop closes the gallery
+dialog.addEventListener("click", e => { if (e.target === dialog) dialog.close(); });
+
+/* ------------------------------ sharing ------------------------------ */
+let lastSharedPng = store.get("lastSharedPng", "");
+
+async function share() {
+  if (!configured) { setStatus(shareStatus, "The gallery isn't set up yet.", true); return; }
+  if (!window.Catify.earsOn()) { setStatus(shareStatus, "Turn on \"Show cat ears\" first, this is a cat ear gallery!", true); return; }
+
+  const wait = store.get("lastShareAt", 0) + SHARE_COOLDOWN_MS - Date.now();
+  if (wait > 0) { setStatus(shareStatus, `Please wait ${Math.ceil(wait / 1000)} seconds before sharing again.`, true); return; }
+
+  const png = window.Catify.getPNG();
+  if (png === lastSharedPng) { setStatus(shareStatus, "You already shared this exact skin.", true); return; }
+  if (png.length >= 16000) { setStatus(shareStatus, "This skin is too detailed to share (file too big).", true); return; }
+
+  const name = cleanName(shareName.value);
+  store.set("shareName", name);
+  shareBtn.disabled = true;
+  setStatus(shareStatus, "Sharing…");
+  try {
+    const { db, fs } = await firebase();
+    await fs.addDoc(fs.collection(db, "skins"), {
+      png, name, slim: window.Catify.isSlim(), createdAt: fs.serverTimestamp(), reports: 0,
+    });
+    lastSharedPng = png;
+    store.set("lastSharedPng", png);
+    store.set("lastShareAt", Date.now());
+    setStatus(shareStatus, "Shared! Your skin is now in the gallery, nya~");
+    if (loadedOnce) refreshGallery();
+  } catch (err) {
+    console.warn("Share error:", err);
+    setStatus(shareStatus, "Sharing failed. Try again in a moment.", true);
+  } finally {
+    shareBtn.disabled = false;
+  }
+}
+shareBtn.addEventListener("click", share);
+shareName.addEventListener("keydown", e => { if (e.key === "Enter") share(); });
+
+if (!configured) {
+  setStatus(shareStatus, "Sharing turns on once the gallery is set up (see README).");
+}
