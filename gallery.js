@@ -29,11 +29,17 @@ let fb = null; // { db, fns }
 async function firebase() {
   if (fb) return fb;
   const base = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
-  const [{ initializeApp }, fs] = await Promise.all([
+  const siteKey = window.CATIFY_RECAPTCHA_KEY || "";
+  const [{ initializeApp }, fs, ac] = await Promise.all([
     import(`${base}/firebase-app.js`),
     import(`${base}/firebase-firestore.js`),
+    siteKey ? import(`${base}/firebase-app-check.js`) : null,
   ]);
   const app = initializeApp(config);
+  // App Check: proves requests come from the real Catify page, so bots can't flood the gallery
+  if (ac) {
+    ac.initializeAppCheck(app, { provider: new ac.ReCaptchaV3Provider(siteKey), isTokenAutoRefreshEnabled: true });
+  }
   fb = { db: fs.getFirestore(app), fs };
   return fb;
 }
@@ -84,8 +90,10 @@ function downloadDataUrl(url, name) {
 }
 
 /* ------------------------------ gallery ------------------------------ */
-let lastDoc = null, loading = false, loadedOnce = false;
+let lastDoc = null, loading = false, loadedOnce = false, sortBy = "new", generation = 0;
 const reported = new Set(store.get("reported", []));
+const hearted = new Set(store.get("hearted", []));
+const skinLink = id => `${location.origin}${location.pathname}#skin=${id}`;
 
 function card(id, data) {
   const el = document.createElement("article");
@@ -107,17 +115,31 @@ function card(id, data) {
 
   el.innerHTML = `
     <div class="skin-stage"></div>
-    <div class="skin-meta"><span class="skin-name"></span><span class="skin-time"></span></div>
+    <div class="skin-meta">
+      <div class="skin-who"><span class="skin-name"></span><span class="skin-time"></span></div>
+      <button class="heart" data-act="heart" aria-pressed="false"><span class="heart-icon" aria-hidden="true"></span><span class="heart-count">0</span></button>
+    </div>
     <div class="skin-actions">
       <button class="btn small primary-soft" data-act="use">Try on</button>
-      <button class="btn small" data-act="download" aria-label="Download">Download</button>
-      <button class="btn small skin-report" data-act="report" title="Report this skin" aria-label="Report this skin">Report</button>
-    </div>`;
+      <button class="btn small" data-act="download">Download</button>
+      <button class="btn small" data-act="link" aria-label="Copy link to this skin">Link</button>
+    </div>
+    <button class="skin-report" data-act="report">Report</button>`;
   el.querySelector(".skin-stage").appendChild(fig);
   el.querySelector(".skin-name").textContent = name;
   el.querySelector(".skin-time").textContent = timeAgo(when);
   const reportBtn = el.querySelector('[data-act="report"]');
   if (reported.has(id)) { reportBtn.disabled = true; reportBtn.textContent = "Reported"; }
+
+  const heartBtn = el.querySelector(".heart"), heartCount = el.querySelector(".heart-count");
+  let hearts = data.hearts || 0;
+  const paintHeart = () => {
+    const on = hearted.has(id);
+    heartBtn.setAttribute("aria-pressed", on);
+    heartBtn.setAttribute("aria-label", `${on ? "Remove heart" : "Give a heart"} (${hearts})`);
+    heartCount.textContent = hearts;
+  };
+  paintHeart();
 
   el.addEventListener("click", async e => {
     const act = e.target.closest("button")?.dataset.act;
@@ -126,6 +148,27 @@ function card(id, data) {
       catch { setStatus(gStatus, "That skin couldn't be loaded.", true); }
     } else if (act === "download") {
       downloadDataUrl(data.png, (data.name || "gallery").replace(/\s+/g, "_"));
+    } else if (act === "heart") {
+      if (heartBtn.disabled) return;
+      const adding = !hearted.has(id);
+      // show it straight away, undo if the database says no
+      hearts = Math.max(0, hearts + (adding ? 1 : -1));
+      adding ? hearted.add(id) : hearted.delete(id);
+      paintHeart(); heartBtn.classList.toggle("pop", adding);
+      heartBtn.disabled = true;
+      try {
+        const { db, fs } = await firebase();
+        await fs.updateDoc(fs.doc(db, "skins", id), { hearts: fs.increment(adding ? 1 : -1) });
+        store.set("hearted", [...hearted]);
+      } catch (err) {
+        console.warn(err);
+        hearts = Math.max(0, hearts + (adding ? -1 : 1));
+        adding ? hearted.delete(id) : hearted.add(id);
+        paintHeart();
+        setStatus(gStatus, "Couldn't save your heart. Try again later.", true);
+      } finally { heartBtn.disabled = false; }
+    } else if (act === "link") {
+      copyLink(id, name);
     } else if (act === "report") {
       if (!confirm("Report this skin as inappropriate? Skins with several reports are hidden.")) return;
       try {
@@ -146,13 +189,16 @@ function card(id, data) {
 async function loadPage() {
   if (loading) return;
   loading = true; more.disabled = true;
+  const gen = generation;
   if (!lastDoc) setStatus(gStatus, "Loading skins…");
   try {
     const { db, fs } = await firebase();
-    const parts = [fs.collection(db, "skins"), fs.orderBy("createdAt", "desc")];
+    const order = sortBy === "loved" ? fs.orderBy("hearts", "desc") : fs.orderBy("createdAt", "desc");
+    const parts = [fs.collection(db, "skins"), order];
     if (lastDoc) parts.push(fs.startAfter(lastDoc));
     parts.push(fs.limit(PAGE_SIZE));
     const snap = await fs.getDocs(fs.query(...parts));
+    if (gen !== generation) return; // the tab was switched while this was loading
     let shown = 0;
     snap.forEach(d => {
       const data = d.data();
@@ -173,10 +219,60 @@ async function loadPage() {
 }
 
 function refreshGallery() {
-  grid.innerHTML = ""; lastDoc = null; loadedOnce = false;
+  generation++;
+  grid.innerHTML = ""; lastDoc = null; loadedOnce = false; loading = false;
   more.classList.add("hidden");
   loadPage();
 }
+
+// Newest / Most loved tabs (added here so index.html doesn't need to change)
+if (!$("gallerySort")) {
+  const sort = document.createElement("div");
+  sort.className = "seg gallery-sort"; sort.id = "gallerySort";
+  sort.setAttribute("role", "group"); sort.setAttribute("aria-label", "Sort skins");
+  sort.innerHTML = '<button data-sort="new" aria-pressed="true">Newest</button><button data-sort="loved" aria-pressed="false">Most loved</button>';
+  document.querySelector(".gallery-head").appendChild(sort);
+}
+document.querySelectorAll("#gallerySort button").forEach(b => b.addEventListener("click", () => {
+  if (sortBy === b.dataset.sort) return;
+  sortBy = b.dataset.sort;
+  document.querySelectorAll("#gallerySort button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  if (configured) refreshGallery();
+}));
+
+/* ------------------------------ share links ------------------------------ */
+async function copyLink(id, name) {
+  const url = skinLink(id);
+  // phones: the share sheet (Discord, WhatsApp…); computers: copy to clipboard
+  if (matchMedia("(pointer: coarse)").matches && navigator.share) {
+    try { await navigator.share({ title: `${name}'s Catify skin`, url }); return; }
+    catch (e) { if (e.name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast("Link copied, paste it anywhere, nya~"); }
+  catch { prompt("Copy this link:", url); }
+}
+
+// Opening a link like …/Catify/#skin=abc123 shows that skin straight away
+async function openFromLink() {
+  const m = /^#skin=([A-Za-z0-9]{1,40})$/.exec(location.hash);
+  if (!m || !configured) return;
+  try {
+    const { db, fs } = await firebase();
+    const snap = await fs.getDoc(fs.doc(db, "skins", m[1]));
+    const data = snap.exists() ? snap.data() : null;
+    if (!data || (data.reports || 0) >= HIDE_AFTER_REPORTS || typeof data.png !== "string") {
+      toast("That skin isn't in the gallery anymore.");
+      return;
+    }
+    await window.Catify.loadShared(data.png, { name: data.name, slim: data.slim });
+    toast(`Showing ${data.name || "someone"}'s skin from the gallery`);
+  } catch (err) {
+    console.warn("Skin link error:", err);
+    toast("That skin link couldn't be opened.");
+  }
+}
+window.addEventListener("hashchange", openFromLink);
+openFromLink();
 
 function openGallery() {
   if (!dialog.open) dialog.showModal();
@@ -215,7 +311,7 @@ async function addToGallery(png, { quiet = false } = {}) {
   try {
     const { db, fs } = await firebase();
     await fs.addDoc(fs.collection(db, "skins"), {
-      png, name, slim: window.Catify.isSlim(), createdAt: fs.serverTimestamp(), reports: 0,
+      png, name, slim: window.Catify.isSlim(), createdAt: fs.serverTimestamp(), reports: 0, hearts: 0,
     });
     lastSharedPng = png;
     store.set("lastSharedPng", png);
