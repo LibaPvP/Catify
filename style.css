@@ -37,7 +37,7 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Night kitty: follows the device's dark mode */
+/* Night kitty: follows the device's dark mode, unless the theme button picked light */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --cream: #2b2033;
@@ -61,6 +61,29 @@
     --lift: 0 2px 0 rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25);
     color-scheme: dark;
   }
+}
+/* ...or when the theme button picked dark */
+:root[data-theme="dark"] {
+    --cream: #2b2033;
+    --blush: #3a2a45;
+    --blush-2: #4a3557;
+    --pink: #ff9cc2;
+    --pink-deep: #ffb8d4;
+    --lav: #b9a3ff;
+    --lav-soft: #362a4d;
+    --ink: #fbe9f4;
+    --muted: #c3a6bd;
+    --line: #4d3a5a;
+    --on-pink: #3a1530;
+    --danger: #ff8fae;
+    --stage-a: #33243f;
+    --stage-b: #221b33;
+    --grid-a: #7a4f80;
+    --grid-b: #4b3758;
+    --check-a: #34273f;
+    --check-b: #3d2e4a;
+    --lift: 0 2px 0 rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25);
+    color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: inherit; }
@@ -155,6 +178,21 @@ button, input, select { font: inherit; color: inherit; }
 .btn.primary:hover { background: var(--pink-deep); border-color: var(--pink-deep); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .btn.primary:hover { background: var(--pink-deep); color: #3a1530; }
+}
+:root[data-theme="dark"] .btn.primary:hover { background: var(--pink-deep); color: #3a1530; }
+
+/* light / dark switch */
+.theme-btn { display: inline-grid; place-items: center; width: 38px; height: 38px; padding: 0; }
+.theme-btn::before {
+  content: ""; width: 18px; height: 18px; background: currentColor;
+  /* moon in light mode: tap to go dark */
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+/* sun in dark mode: tap to go light */
+.theme-btn.is-dark::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cg stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cg stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1'/%3E%3C/g%3E%3C/svg%3E");
 }
 .btn[aria-pressed="true"] { background: var(--lav); border-color: var(--lav); color: #2d1f55; }
 
@@ -559,6 +597,7 @@ input[type="range"]::-moz-range-thumb {
 }
 @media (max-width: 380px) {
   .bar #galleryBtn { padding: 7px 10px; }
+  .theme-btn { width: 34px; height: 34px; }
 }
 
 /* ------------------------------ touch devices ------------------------------ */
@@ -593,6 +632,11 @@ button, summary, label, input { -webkit-tap-highlight-color: transparent; }
   .brand { font-size: 26px; }
   .tagline { display: none; }
   .bar .btn.primary { padding: 8px 14px; }
+  /* phone header: icon, Gallery and Download have to fit next to the logo */
+  .bar { gap: 8px; }
+  .bar .btn { padding: 7px 12px; font-size: 13px; }
+  .bar .theme-btn { width: 34px; height: 34px; padding: 0; }
+  .dl-word { display: none; }
 
   .app { display: block; }
   /* the 3D view stays pinned at the top while you scroll through the controls */
