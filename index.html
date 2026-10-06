@@ -51,6 +51,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script>
+  // apply the saved light/dark choice before the page draws, so it doesn't flash
+  try { const t = localStorage.getItem("catify:theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -59,8 +63,9 @@
   <h1 class="brand"><span class="brand-word">Catify</span></h1>
   <p class="tagline">Turn any Minecraft skin into a <span class="cat-word">catgirl</span>, <em>nya~</em></p>
   <span class="spacer"></span>
+  <button class="btn theme-btn" id="themeBtn" aria-label="Switch to dark mode" title="Light / dark mode"></button>
   <button class="btn" id="galleryBtn">Gallery</button>
-  <button class="btn primary" id="downloadBtn" title="Downloads your skin and adds it to the community gallery">Download skin</button>
+  <button class="btn primary" id="downloadBtn" title="Downloads your skin and adds it to the community gallery">Download<span class="dl-word"> skin</span></button>
 </header>
 
 <main class="app">
@@ -520,6 +525,40 @@ function drawPreview() {
 const viewCanvas = document.getElementById("view");
 const stage = document.getElementById("stage");
 let renderer, scene, camera, skinTexture, model, grid, baseMat, overlayMat;
+
+// floor grid in the current theme's colours (rebuilt when the theme changes)
+function makeGrid() {
+  if (!scene) return;
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
+  grid = new THREE.GridHelper(48, 48, new THREE.Color(cssVar("--grid-a", "#e889b0")).convertSRGBToLinear(), new THREE.Color(cssVar("--grid-b", "#f2c2d6")).convertSRGBToLinear());
+  grid.material.transparent = true; grid.material.opacity = .9;
+  grid.visible = state.grid;
+  scene.add(grid);
+}
+
+/* ------------------------------ light / dark mode ------------------------------ */
+const themeBtn = document.getElementById("themeBtn");
+const systemDark = matchMedia("(prefers-color-scheme: dark)");
+const isDark = () => {
+  const t = document.documentElement.dataset.theme;
+  return t ? t === "dark" : systemDark.matches;
+};
+function themeChanged() {
+  const dark = isDark();
+  themeBtn.classList.toggle("is-dark", dark);
+  themeBtn.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute("content", dark ? "#2b2033" : "#fff8fb"));
+  makeGrid();
+  if (typeof drawPreview === "function" && outCanvas) drawPreview();
+}
+themeBtn.addEventListener("click", () => {
+  const next = isDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("catify:theme", next); } catch (e) {}
+  themeChanged();
+});
+systemDark.addEventListener("change", () => { if (!document.documentElement.dataset.theme) themeChanged(); });
+themeChanged(); // set the right icon on load
 const parts = {};
 
 function setBoxUVs(geo, u, v, w, h, d) {
@@ -694,9 +733,7 @@ function initThree() {
   baseMat = new THREE.MeshLambertMaterial({ map: skinTexture });
   overlayMat = new THREE.MeshLambertMaterial({ map: skinTexture, transparent: true, alphaTest: .1, side: THREE.DoubleSide });
 
-  grid = new THREE.GridHelper(48, 48, new THREE.Color(cssVar("--grid-a", "#e889b0")).convertSRGBToLinear(), new THREE.Color(cssVar("--grid-b", "#f2c2d6")).convertSRGBToLinear());
-  grid.material.transparent = true; grid.material.opacity = .9;
-  scene.add(grid);
+  makeGrid();
 
   buildModel();
   bindOrbit();
